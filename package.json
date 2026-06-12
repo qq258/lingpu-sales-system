@@ -1,0 +1,30 @@
+{
+  "name": "phone-sales-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "手机销售后台管理系统 - Monorepo",
+  "scripts": {
+    "dev:client": "pnpm --filter @phone-sales/client dev",
+    "dev:server": "pnpm --filter @phone-sales/server dev",
+    "dev": "pnpm run /^dev:.*/",
+    "build:client": "pnpm --filter @phone-sales/client build",
+    "build:server": "pnpm --filter @phone-sales/server build",
+    "build": "pnpm run /^build:.*/",
+    "prisma:generate": "pnpm --filter @phone-sales/server prisma:generate",
+    "prisma:push": "pnpm --filter @phone-sales/server prisma:push",
+    "seed": "pnpm --filter @phone-sales/server seed"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "vue-demi"
+    ]
+  }
+}

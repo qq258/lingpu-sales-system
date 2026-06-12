@@ -75,7 +75,7 @@ export async function getPurchaseEntry(id: number): Promise<any> {
 }
 
 export async function createPurchaseEntry(data: {
-  supplierId?: number
+  supplierId?: number | null
   remark?: string
   storeId?: number
 }): Promise<any> {

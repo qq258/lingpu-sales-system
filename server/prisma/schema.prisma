@@ -165,7 +165,7 @@ model pch_purchase_entry {
   id           Int      @id @default(autoincrement())
   entry_no     String   @unique
   store_id     Int
-  supplier_id  Int
+  supplier_id  Int?
   total_amount Float?
   status       String   @default("pending")
   operator_id  Int
@@ -175,7 +175,7 @@ model pch_purchase_entry {
   deleted_at   DateTime?
 
   store    sys_store          @relation(fields: [store_id], references: [id])
-  supplier pch_supplier       @relation(fields: [supplier_id], references: [id])
+  supplier pch_supplier?      @relation(fields: [supplier_id], references: [id])
   operator sys_user           @relation(fields: [operator_id], references: [id])
   items    pch_purchase_item[]
 

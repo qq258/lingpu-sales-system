@@ -63,14 +63,7 @@
           </div>
           <div class="pbm-field">
             <label>单价（元）</label>
-            <input
-              v-model.number="singleUnitPrice"
-              type="number"
-              class="pbm-number-input"
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-            />
+            <el-input-number v-model="singleUnitPrice" :min="0" :precision="2" :step="100" :controls="false" placeholder="0.00" class="pbm-price-input" />
           </div>
           <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!canAddSingle" @click="handleSingleAdd">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -87,15 +80,7 @@
         <h3>批量粘贴</h3>
         <div class="pbm-field">
           <label>单价（元）</label>
-          <input
-            v-model.number="batchUnitPrice"
-            type="number"
-            class="pbm-number-input"
-            placeholder="0.00"
-            min="0"
-            step="0.01"
-            style="max-width: 200px;"
-          />
+          <el-input-number v-model="batchUnitPrice" :min="0" :precision="2" :step="100" :controls="false" placeholder="0.00" class="pbm-price-input" style="max-width: 200px;" />
         </div>
         <div class="pbm-field" style="margin-top: 14px;">
           <label>IMEI 列表（每行一个）</label>
@@ -169,7 +154,7 @@
 
       <div class="pbm-form-actions">
         <button class="pbm-btn-plain" @click="resetForm">重置</button>
-        <button class="pbm-btn-accent" :disabled="items.length === 0 || !currentEntryId || confirmLoading" @click="handleConfirm">
+        <button class="pbm-btn-accent" :disabled="items.length === 0 || confirmLoading" @click="handleConfirm">
           <svg v-if="confirmLoading" class="pbm-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
           {{ confirmLoading ? '确认中...' : '确认入库' }}
         </button>
@@ -211,11 +196,11 @@ const entryMode = ref<'single' | 'batch'>('single')
 
 const singleImeiRef = ref<HTMLInputElement>()
 const singleImei = ref('')
-const singleUnitPrice = ref<number | undefined>()
+const singleUnitPrice = ref(0)
 
 const batchImeiRef = ref<HTMLTextAreaElement>()
 const batchImeiText = ref('')
-const batchUnitPrice = ref<number | undefined>()
+const batchUnitPrice = ref(0)
 
 const items = ref<any[]>([])
 
@@ -228,11 +213,11 @@ const batchImeiLines = computed(() => {
 })
 
 const canAddSingle = computed(() => {
-  return !!(selectedSku.value && singleImei.value.trim() && singleUnitPrice.value && singleUnitPrice.value > 0)
+  return !!(selectedSku.value && singleImei.value.trim() && singleUnitPrice.value > 0)
 })
 
 const canAddBatch = computed(() => {
-  return !!(selectedSku.value && batchImeiLines.value > 0 && batchUnitPrice.value && batchUnitPrice.value > 0)
+  return !!(selectedSku.value && batchImeiLines.value > 0 && batchUnitPrice.value > 0)
 })
 
 const parsedImeiList = computed(() => {
@@ -272,27 +257,12 @@ const scanner = createScanner({
 
 onMounted(async () => {
   await loadSuppliers()
-  await ensureEntryCreated()
   scanner.attach()
 })
 
 onUnmounted(() => {
   scanner.detach()
 })
-
-async function ensureEntryCreated() {
-  if (currentEntryId.value) return
-  try {
-    const entry = await createPurchaseEntry({
-      supplierId: form.value.supplierId || undefined,
-      remark: form.value.remark || undefined,
-      storeId: userStore.effectiveStoreId || undefined,
-    })
-    currentEntryId.value = entry.id
-  } catch {
-    ElMessage.error('创建入库单失败')
-  }
-}
 
 async function loadSuppliers() {
   try {
@@ -318,20 +288,31 @@ async function handleSingleAdd() {
     return
   }
 
-  await ensureEntryCreated()
-  if (!currentEntryId.value) return
+  if (!currentEntryId.value) {
+    try {
+      const entry = await createPurchaseEntry({
+        supplierId: form.value.supplierId ?? undefined,
+        remark: form.value.remark || undefined,
+        storeId: userStore.effectiveStoreId || undefined,
+      })
+      currentEntryId.value = entry.id
+    } catch {
+      ElMessage.error('创建入库单失败')
+      return
+    }
+  }
 
   const imei = singleImei.value.trim()
   try {
-    const item = await addPurchaseItem(currentEntryId.value, {
+    const item = await addPurchaseItem(currentEntryId.value!, {
       skuId: selectedSku.value.id,
       imei,
-      unitPrice: singleUnitPrice.value!,
+      unitPrice: singleUnitPrice.value,
     })
     items.value.push(item)
     ElMessage.success(`已添加: ${imei}`)
     singleImei.value = ''
-    singleUnitPrice.value = undefined
+    singleUnitPrice.value = 0
     await nextTick()
     singleImeiRef.value?.focus()
   } catch (err: any) {
@@ -347,17 +328,28 @@ async function handleBatchAdd() {
     return
   }
 
-  await ensureEntryCreated()
-  if (!currentEntryId.value) return
+  if (!currentEntryId.value) {
+    try {
+      const entry = await createPurchaseEntry({
+        supplierId: form.value.supplierId ?? undefined,
+        remark: form.value.remark || undefined,
+        storeId: userStore.effectiveStoreId || undefined,
+      })
+      currentEntryId.value = entry.id
+    } catch {
+      ElMessage.error('创建入库单失败')
+      return
+    }
+  }
 
   const imeiList = parsedImeiList.value
   if (imeiList.length === 0) return
 
   try {
-    const result = await batchAddPurchaseImei(currentEntryId.value, {
+    const result = await batchAddPurchaseImei(currentEntryId.value!, {
       skuId: selectedSku.value.id,
       imeiList,
-      unitPrice: batchUnitPrice.value!,
+      unitPrice: batchUnitPrice.value,
     })
     if (Array.isArray(result)) {
       items.value.push(...result)
@@ -366,7 +358,7 @@ async function handleBatchAdd() {
     }
     ElMessage.success(`成功添加 ${imeiList.length} 台`)
     batchImeiText.value = ''
-    batchUnitPrice.value = undefined
+    batchUnitPrice.value = 0
   } catch (err: any) {
     ElMessage.error(err?.response?.data?.message || '批量添加失败')
   }
@@ -381,7 +373,7 @@ async function handleDelete(row: any) {
       type: 'warning',
     })
     tableLoading.value = true
-    await deletePurchaseItem(currentEntryId.value, row.id)
+    await deletePurchaseItem(currentEntryId.value!, row.id)
     const idx = items.value.findIndex(item => item.id === row.id)
     if (idx !== -1) items.value.splice(idx, 1)
     ElMessage.success('已删除')
@@ -400,14 +392,24 @@ async function handleConfirm() {
     ElMessage.warning('入库商品清单为空')
     return
   }
+
   if (!currentEntryId.value) {
-    ElMessage.warning('入库单未创建')
-    return
+    try {
+      const entry = await createPurchaseEntry({
+        supplierId: form.value.supplierId ?? undefined,
+        remark: form.value.remark || undefined,
+        storeId: userStore.effectiveStoreId || undefined,
+      })
+      currentEntryId.value = entry.id
+    } catch {
+      ElMessage.error('创建入库单失败')
+      return
+    }
   }
 
   confirmLoading.value = true
   try {
-    await confirmPurchaseEntry(currentEntryId.value)
+    await confirmPurchaseEntry(currentEntryId.value!)
     ElMessage.success(`入库成功，共 ${items.value.length} 台`)
     emit('back')
   } catch {
@@ -422,9 +424,9 @@ function resetForm() {
   currentEntryId.value = null
   selectedSku.value = null
   singleImei.value = ''
-  singleUnitPrice.value = undefined
+  singleUnitPrice.value = 0
   batchImeiText.value = ''
-  batchUnitPrice.value = undefined
+  batchUnitPrice.value = 0
   skuSelectorRef.value?.focus()
 }
 </script>
@@ -600,6 +602,26 @@ function resetForm() {
 .pbm-number-input::placeholder {
   color: rgba(138,127,114,0.4);
   font-family: var(--pbm-font);
+}
+
+.pbm-price-input {
+  width: 150px;
+}
+.pbm-price-input :deep(.el-input__wrapper) {
+  background: var(--pbm-bg);
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  box-shadow: none;
+  padding: 1px 12px;
+}
+.pbm-price-input :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--pbm-accent);
+  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
+}
+.pbm-price-input :deep(.el-input__inner) {
+  font-family: var(--pbm-mono);
+  font-size: 14px;
+  color: var(--pbm-text);
 }
 
 .pbm-textarea {

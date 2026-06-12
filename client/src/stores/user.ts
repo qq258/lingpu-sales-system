@@ -34,15 +34,18 @@ export const useUserStore = defineStore('user', () => {
     return userInfo.value?.storeName || '未知门店'
   })
 
-  async function login(loginData: { username: string; password: string }) {
+  async function login(loginData: { username: string; password: string; storeId?: number }) {
     const result = await loginApi(loginData)
     token.value = result.token
     userInfo.value = result.user
     localStorage.setItem('token', result.token)
-    if (result.user.storeId) {
+    availableStores.value = result.stores
+    if (loginData.storeId) {
+      currentStoreId.value = loginData.storeId
+    } else if (result.user.storeId) {
       currentStoreId.value = result.user.storeId
     }
-    await loadStores()
+    return result.stores
   }
 
   function logout() {

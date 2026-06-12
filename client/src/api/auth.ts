@@ -15,6 +15,7 @@ export interface LoginResult {
     storeId: number | null
     storeName: string | null
   }
+  stores: Array<{ id: number; name: string; code: string }>
 }
 
 export async function login(data: LoginData): Promise<LoginResult> {
@@ -29,6 +30,7 @@ export async function login(data: LoginData): Promise<LoginResult> {
       storeId: res.data.userInfo.storeId,
       storeName: res.data.userInfo.storeName || null,
     },
+    stores: res.data.stores || [],
   }
 }
 
