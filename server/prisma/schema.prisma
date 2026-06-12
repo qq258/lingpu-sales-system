@@ -1,0 +1,350 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/database.sqlite"
+}
+
+model sys_store {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  code       String   @unique
+  address    String?
+  phone      String?
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  users                sys_user[]
+  purchase_entries     pch_purchase_entry[]
+  inventory            wh_inventory[]
+  inventory_logs       wh_inventory_log[]
+  inventory_imei       wh_inventory_imei[]
+  inventory_checks     wh_inventory_check[]
+  sale_orders          sale_order[]
+  transfers_from       wh_transfer[]       @relation("from_store")
+  transfers_to         wh_transfer[]       @relation("to_store")
+  operation_logs       sys_operation_log[]
+}
+
+model sys_user {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  password   String
+  real_name  String
+  role       String   @default("operator")
+  store_id   Int?
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  store              sys_store?          @relation(fields: [store_id], references: [id])
+  purchase_entries   pch_purchase_entry[]
+  inventory_logs     wh_inventory_log[]
+  inventory_checks   wh_inventory_check[]
+  sales              sale_order[]
+  transfers_applied  wh_transfer[]       @relation("applicant")
+  transfers_outbound wh_transfer[]       @relation("outbound_operator")
+  transfers_inbound  wh_transfer[]       @relation("inbound_operator")
+  operation_logs     sys_operation_log[]
+}
+
+model sys_operation_log {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  store_id   Int?
+  action     String
+  module     String
+  target_id  Int?
+  detail     String?
+  ip         String?
+  created_at DateTime @default(now())
+
+  user  sys_user  @relation(fields: [user_id], references: [id])
+  store sys_store? @relation(fields: [store_id], references: [id])
+}
+
+model pdt_brand {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  status      Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+
+  models pdt_model[]
+}
+
+model pdt_model {
+  id           Int      @id @default(autoincrement())
+  brand_id     Int
+  name         String
+  launch_year  Int?
+  os_type      String?
+  network_type String?
+  screen_size  String?
+  cpu          String?
+  battery      String?
+  description  String?
+  status       Int      @default(1)
+  created_at   DateTime @default(now())
+
+  brand pdt_brand @relation(fields: [brand_id], references: [id])
+  skus  pdt_sku[]
+
+  @@index([brand_id])
+  @@index([name])
+}
+
+model pdt_sku {
+  id                  Int      @id @default(autoincrement())
+  model_id            Int
+  sku_code            String   @unique
+  manufacturer_barcode String? @unique
+  color               String?
+  ram                 String?
+  rom                 String?
+  sale_price          Float
+  cost_price          Float?
+  status              Int      @default(1)
+  image_path          String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
+
+  model           pdt_model           @relation(fields: [model_id], references: [id])
+  barcodes        pdt_sku_barcode[]
+  images          pdt_sku_image[]
+  purchase_items  pch_purchase_item[]
+  inventory       wh_inventory[]
+  inventory_logs  wh_inventory_log[]
+  inventory_imei  wh_inventory_imei[]
+  inventory_check_items wh_inventory_check_item[]
+  sales           sale_order[]
+  transfers       wh_transfer[]
+
+  @@index([model_id])
+  @@index([manufacturer_barcode])
+  @@index([sku_code])
+}
+
+model pdt_sku_barcode {
+  id        Int      @id @default(autoincrement())
+  sku_id    Int
+  barcode   String   @unique
+  created_at DateTime @default(now())
+
+  sku pdt_sku @relation(fields: [sku_id], references: [id])
+}
+
+model pdt_sku_image {
+  id         Int      @id @default(autoincrement())
+  sku_id     Int
+  image_path String
+  sort       Int      @default(0)
+  created_at DateTime @default(now())
+
+  sku pdt_sku @relation(fields: [sku_id], references: [id])
+}
+
+model pch_supplier {
+  id             Int      @id @default(autoincrement())
+  name           String
+  contact_person String?
+  phone          String?
+  address        String?
+  remark         String?
+  status         Int      @default(1)
+  created_at     DateTime @default(now())
+
+  purchase_entries pch_purchase_entry[]
+}
+
+model pch_purchase_entry {
+  id           Int      @id @default(autoincrement())
+  entry_no     String   @unique
+  store_id     Int
+  supplier_id  Int
+  total_amount Float?
+  status       String   @default("pending")
+  operator_id  Int
+  remark       String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+  deleted_at   DateTime?
+
+  store    sys_store          @relation(fields: [store_id], references: [id])
+  supplier pch_supplier       @relation(fields: [supplier_id], references: [id])
+  operator sys_user           @relation(fields: [operator_id], references: [id])
+  items    pch_purchase_item[]
+
+  @@index([store_id])
+  @@index([supplier_id])
+  @@index([entry_no])
+}
+
+model pch_purchase_item {
+  id         Int   @id @default(autoincrement())
+  entry_id   Int
+  sku_id     Int
+  quantity   Int
+  unit_price Float
+  subtotal   Float?
+
+  entry pch_purchase_entry @relation(fields: [entry_id], references: [id])
+  sku   pdt_sku            @relation(fields: [sku_id], references: [id])
+
+  @@index([entry_id])
+  @@index([sku_id])
+}
+
+model wh_inventory {
+  id         Int @id @default(autoincrement())
+  sku_id     Int
+  store_id   Int
+  quantity   Int @default(0)
+  brand_name String?
+  model_name String?
+  sku_code   String?
+  color      String?
+  storage    String?
+  cost_price Float?
+  sale_price Float?
+
+  sku   pdt_sku   @relation(fields: [sku_id], references: [id])
+  store sys_store @relation(fields: [store_id], references: [id])
+
+  @@unique([sku_id, store_id])
+}
+
+model wh_inventory_log {
+  id          Int      @id @default(autoincrement())
+  sku_id      Int
+  store_id    Int
+  change_type String
+  qty_before  Int
+  qty_change  Int
+  qty_after   Int
+  ref_type    String?
+  ref_id      Int?
+  remark      String?
+  operator_id Int?
+  created_at  DateTime @default(now())
+
+  sku   pdt_sku   @relation(fields: [sku_id], references: [id])
+  store sys_store @relation(fields: [store_id], references: [id])
+  operator sys_user? @relation(fields: [operator_id], references: [id])
+
+  @@index([sku_id, store_id])
+  @@index([change_type])
+  @@index([created_at])
+}
+
+model wh_inventory_imei {
+  id         Int      @id @default(autoincrement())
+  sku_id     Int
+  store_id   Int
+  imei       String   @unique
+  status     String   @default("in_stock")
+  entry_id   Int?
+  created_at DateTime @default(now())
+
+  sku   pdt_sku   @relation(fields: [sku_id], references: [id])
+  store sys_store @relation(fields: [store_id], references: [id])
+}
+
+model wh_inventory_check {
+  id          Int      @id @default(autoincrement())
+  check_no    String   @unique
+  store_id    Int
+  status      String   @default("pending")
+  checker_id  Int
+  check_time  DateTime?
+  remark      String?
+  created_at  DateTime @default(now())
+
+  store  sys_store                @relation(fields: [store_id], references: [id])
+  checker sys_user                @relation(fields: [checker_id], references: [id])
+  items   wh_inventory_check_item[]
+}
+
+model wh_inventory_check_item {
+  id           Int  @id @default(autoincrement())
+  check_id     Int
+  sku_id       Int
+  expected_qty Int
+  actual_qty   Int
+  diff_qty     Int?
+
+  check wh_inventory_check @relation(fields: [check_id], references: [id])
+  sku   pdt_sku           @relation(fields: [sku_id], references: [id])
+}
+
+model sale_order {
+  id            Int      @id @default(autoincrement())
+  order_no      String   @unique
+  store_id      Int
+  sku_id        Int
+  sku_name      String
+  quantity      Int
+  unit_price    Float
+  total_amount  Float?
+  actual_amount Float
+  customer_name String?
+  remark        String?
+  operator_id   Int
+  status        String   @default("active")
+  created_at    DateTime @default(now())
+
+  store    sys_store @relation(fields: [store_id], references: [id])
+  sku      pdt_sku   @relation(fields: [sku_id], references: [id])
+  operator sys_user  @relation(fields: [operator_id], references: [id])
+  items    sale_order_item[]
+
+  @@index([store_id])
+  @@index([created_at])
+  @@index([order_no])
+}
+
+model sale_order_item {
+  id          Int      @id @default(autoincrement())
+  sale_order_id Int
+  sku_id      Int
+  sku_name    String
+  quantity    Int
+  unit_price  Float
+  total_price Float
+
+  sale_order sale_order @relation(fields: [sale_order_id], references: [id])
+
+  @@index([sale_order_id])
+}
+
+model wh_transfer {
+  id                   Int      @id @default(autoincrement())
+  transfer_no          String   @unique
+  from_store_id        Int
+  to_store_id          Int
+  sku_id               Int
+  quantity             Int
+  status               String   @default("pending")
+  applicant_id         Int
+  outbound_operator_id Int?
+  inbound_operator_id  Int?
+  remark               String?
+  created_at           DateTime @default(now())
+  outbound_at          DateTime?
+  inbound_at           DateTime?
+
+  from_store        sys_store? @relation("from_store", fields: [from_store_id], references: [id])
+  to_store          sys_store? @relation("to_store", fields: [to_store_id], references: [id])
+  sku               pdt_sku    @relation(fields: [sku_id], references: [id])
+  applicant         sys_user   @relation("applicant", fields: [applicant_id], references: [id])
+  outbound_operator sys_user?  @relation("outbound_operator", fields: [outbound_operator_id], references: [id])
+  inbound_operator  sys_user?  @relation("inbound_operator", fields: [inbound_operator_id], references: [id])
+
+  @@index([from_store_id])
+  @@index([to_store_id])
+  @@index([status])
+}
