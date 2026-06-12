@@ -26,68 +26,129 @@
       </div>
 
       <div class="pbm-section-card">
-        <h3>扫码添加商品</h3>
-        <div class="pbm-scan-input-wrapper">
-          <svg class="pbm-scan-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
-          <input
-            ref="scanInputRef"
-            v-model="scanCode"
-            class="pbm-scan-input"
-            placeholder="扫码枪扫描商品条码，或手动输入后回车"
-            @keyup.enter="handleScan"
-          />
-        </div>
+        <h3>选择商品</h3>
+        <SkuSelector ref="skuSelectorRef" mode="purchase" @select="onSkuSelect" @scan-error="onScanError" />
       </div>
 
       <div class="pbm-section-card">
-        <h3>手动选择商品</h3>
-        <div class="pbm-manual-row">
-          <el-select v-model="manualBrandId" placeholder="选择品牌" filterable clearable style="width: 160px;" @change="onBrandChange">
-            <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
-          </el-select>
-          <el-select v-model="manualModelId" placeholder="选择型号" filterable clearable style="width: 200px;" :disabled="!manualBrandId">
-            <el-option v-for="m in filteredModels" :key="m.id" :label="m.name" :value="m.id" />
-          </el-select>
-          <el-input-number v-model="manualQuantity" :min="1" controls-position="right" style="width: 110px;" placeholder="数量" />
-          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!manualModelId || manualQuantity <= 0" @click="addManualItem">
+        <div class="pbm-mode-toggle">
+          <label class="pbm-radio-card" :class="{ active: entryMode === 'single' }">
+            <input type="radio" v-model="entryMode" value="single" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            <span>逐台录入</span>
+          </label>
+          <label class="pbm-radio-card" :class="{ active: entryMode === 'batch' }">
+            <input type="radio" v-model="entryMode" value="batch" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="13" y2="15"/></svg>
+            <span>批量粘贴</span>
+          </label>
+        </div>
+      </div>
+
+      <div v-if="entryMode === 'single'" class="pbm-section-card">
+        <h3>逐台录入</h3>
+        <div class="pbm-entry-row">
+          <div class="pbm-field">
+            <label>IMEI</label>
+            <div class="pbm-scan-input-wrapper">
+              <svg class="pbm-scan-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+              <input
+                ref="singleImeiRef"
+                v-model="singleImei"
+                class="pbm-scan-input"
+                placeholder="扫码枪扫描或手动输入IMEI"
+                @keyup.enter="handleSingleAdd"
+              />
+            </div>
+          </div>
+          <div class="pbm-field">
+            <label>单价（元）</label>
+            <input
+              v-model.number="singleUnitPrice"
+              type="number"
+              class="pbm-number-input"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!canAddSingle" @click="handleSingleAdd">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>添加</span>
           </button>
         </div>
+        <div v-if="selectedSku" class="pbm-selected-sku-hint">
+          <el-tag size="small" type="primary">{{ selectedSku.brandName }}</el-tag>
+          {{ selectedSku.modelName }} - {{ selectedSku.color }} / {{ selectedSku.storage }}
+        </div>
+      </div>
+
+      <div v-if="entryMode === 'batch'" class="pbm-section-card">
+        <h3>批量粘贴</h3>
+        <div class="pbm-field">
+          <label>单价（元）</label>
+          <input
+            v-model.number="batchUnitPrice"
+            type="number"
+            class="pbm-number-input"
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+            style="max-width: 200px;"
+          />
+        </div>
+        <div class="pbm-field" style="margin-top: 14px;">
+          <label>IMEI 列表（每行一个）</label>
+          <textarea
+            ref="batchImeiRef"
+            v-model="batchImeiText"
+            class="pbm-textarea"
+            rows="6"
+            placeholder="粘贴 IMEI，每行一个&#10;&#10;例如:&#10;861234567890101&#10;861234567890102&#10;861234567890103"
+          ></textarea>
+        </div>
+        <div class="pbm-batch-footer">
+          <span class="pbm-batch-count" :class="{ 'pbm-batch-count--ok': batchImeiLines > 0 }">
+            {{ batchImeiLines }} 个 IMEI
+          </span>
+          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!canAddBatch" @click="handleBatchAdd">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>解析并添加</span>
+          </button>
+        </div>
+        <div v-if="selectedSku" class="pbm-selected-sku-hint">
+          <el-tag size="small" type="primary">{{ selectedSku.brandName }}</el-tag>
+          {{ selectedSku.modelName }} - {{ selectedSku.color }} / {{ selectedSku.storage }}
+        </div>
       </div>
 
       <div class="pbm-section-card">
-        <h3>入库商品清单</h3>
+        <h3>本次入库清单</h3>
         <div class="pbm-table-wrapper">
-          <el-table :data="entryItems" border stripe max-height="400" element-loading-background="rgba(245,240,235,0.8)">
+          <el-table :data="items" border stripe max-height="400" element-loading-background="rgba(245,240,235,0.8)" v-loading="tableLoading">
             <el-table-column type="index" label="序号" width="60" />
-            <el-table-column label="商品信息" min-width="200">
+            <el-table-column label="商品信息" min-width="180">
               <template #default="{ row }">
                 <div>
-                  <el-tag size="small" type="primary">{{ row.brandName }}</el-tag>
-                  {{ row.modelName }} - {{ row.color }} / {{ row.storage }}
+                  <el-tag size="small" type="primary">{{ row.sku.brandName || row.sku?.model?.brand?.name || '' }}</el-tag>
+                  {{ row.sku.modelName || row.sku?.model?.name || '' }} - {{ row.sku.color || '' }} / {{ row.sku.storage || row.sku?.ram || '' }}{{ row.sku?.ram && row.sku?.rom ? '/' : '' }}{{ row.sku?.rom || '' }}
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="条码" width="140" prop="barcode" />
-            <el-table-column label="数量" width="120">
-              <template #default="{ row, $index }">
-                <el-input-number v-model="row.quantity" :min="1" size="small" controls-position="right" style="width: 120px;" />
-              </template>
-            </el-table-column>
-            <el-table-column label="进货单价" width="160">
-              <template #default="{ row, $index }">
-                <el-input-number v-model="row.costPrice" :min="0" :precision="2" size="small" controls-position="right" style="width: 150px;" />
+            <el-table-column label="IMEI" min-width="170" prop="imei" />
+            <el-table-column label="单价" width="120">
+              <template #default="{ row }">
+                ¥{{ (row.unitPrice || row.unit_price || 0).toFixed(2) }}
               </template>
             </el-table-column>
             <el-table-column label="小计" width="120">
               <template #default="{ row }">
-                ¥{{ (row.quantity * row.costPrice).toFixed(2) }}
+                ¥{{ (row.unitPrice || row.unit_price || 0).toFixed(2) }}
               </template>
             </el-table-column>
             <el-table-column label="操作" width="80" fixed="right">
-              <template #default="{ row, $index }">
-                <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" @click="removeItem($index)">
+              <template #default="{ row }">
+                <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" :disabled="tableLoading" @click="handleDelete(row)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                 </button>
               </template>
@@ -95,15 +156,22 @@
           </el-table>
         </div>
 
-        <div v-if="entryItems.length === 0" class="pbm-section-empty">
-          <el-empty description="暂无商品，请扫码或手动选择添加" />
+        <div v-if="items.length === 0" class="pbm-section-empty">
+          <el-empty description="暂无入库商品，请选择商品后添加 IMEI" />
+        </div>
+
+        <div v-if="items.length > 0" class="pbm-summary">
+          合计: <strong>{{ items.length }}</strong> 台
+          <span class="pbm-summary-divider">|</span>
+          总金额: <strong>¥{{ totalAmount.toFixed(2) }}</strong>
         </div>
       </div>
 
       <div class="pbm-form-actions">
         <button class="pbm-btn-plain" @click="resetForm">重置</button>
-        <button class="pbm-btn-accent" :disabled="entryItems.length === 0" @click="handleConfirm">
-          确认入库
+        <button class="pbm-btn-accent" :disabled="items.length === 0 || !currentEntryId || confirmLoading" @click="handleConfirm">
+          <svg v-if="confirmLoading" class="pbm-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+          {{ confirmLoading ? '确认中...' : '确认入库' }}
         </button>
       </div>
     </div>
@@ -112,52 +180,90 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getSuppliers, createPurchaseEntry, scanPurchaseEntry, confirmPurchaseEntry } from '@/api/purchase'
+import {
+  getSuppliers,
+  createPurchaseEntry,
+  addPurchaseItem,
+  batchAddPurchaseImei,
+  deletePurchaseItem,
+  confirmPurchaseEntry,
+} from '@/api/purchase'
 import type { SupplierData } from '@/api/purchase'
-import { getBrands, getModels } from '@/api/product'
-import type { BrandData, ModelData } from '@/api/product'
+import type { SkuData } from '@/api/product'
 import { createScanner } from '@/utils/scanner'
+import SkuSelector from '@/components/SkuSelector.vue'
 
 const userStore = useUserStore()
+const emit = defineEmits<{ back: [] }>()
 
 const suppliers = ref<SupplierData[]>([])
 const form = ref({ supplierId: null as number | null, remark: '' })
-const scanInputRef = ref<HTMLInputElement>()
-const scanCode = ref('')
-const entryItems = ref<Array<{
-  skuId?: number
-  modelId?: number
-  brandName: string
-  modelName: string
-  color: string
-  storage: string
-  barcode: string
-  quantity: number
-  costPrice: number
-}>>([])
 const currentEntryId = ref<number | null>(null)
 const confirmLoading = ref(false)
+const tableLoading = ref(false)
 
-const brands = ref<BrandData[]>([])
-const allModels = ref<ModelData[]>([])
+const skuSelectorRef = ref<InstanceType<typeof SkuSelector>>()
+const selectedSku = ref<SkuData | null>(null)
 
-const manualBrandId = ref<number | undefined>()
-const manualModelId = ref<number | undefined>()
-const manualQuantity = ref(1)
+const entryMode = ref<'single' | 'batch'>('single')
 
-const filteredModels = computed(() => {
-  if (!manualBrandId.value) return []
-  return allModels.value.filter(m => m.brandId === manualBrandId.value)
+const singleImeiRef = ref<HTMLInputElement>()
+const singleImei = ref('')
+const singleUnitPrice = ref<number | undefined>()
+
+const batchImeiRef = ref<HTMLTextAreaElement>()
+const batchImeiText = ref('')
+const batchUnitPrice = ref<number | undefined>()
+
+const items = ref<any[]>([])
+
+const batchImeiLines = computed(() => {
+  return batchImeiText.value
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0)
+    .length
 })
 
-const emit = defineEmits<{ back: [] }>()
+const canAddSingle = computed(() => {
+  return !!(selectedSku.value && singleImei.value.trim() && singleUnitPrice.value && singleUnitPrice.value > 0)
+})
+
+const canAddBatch = computed(() => {
+  return !!(selectedSku.value && batchImeiLines.value > 0 && batchUnitPrice.value && batchUnitPrice.value > 0)
+})
+
+const parsedImeiList = computed(() => {
+  return batchImeiText.value
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0)
+})
+
+const totalAmount = computed(() => {
+  return items.value.reduce((sum, item) => {
+    return sum + (item.unitPrice || item.unit_price || 0)
+  }, 0)
+})
 
 const scanner = createScanner({
   onScan: (code) => {
-    scanCode.value = code
-    handleScanCode(code)
+    if (entryMode.value === 'single') {
+      singleImei.value = code
+      nextTick(() => {
+        if (canAddSingle.value) {
+          handleSingleAdd()
+        }
+      })
+    } else {
+      if (batchImeiText.value) {
+        batchImeiText.value += '\n' + code
+      } else {
+        batchImeiText.value = code
+      }
+    }
   },
   onError: (msg) => {
     ElMessage.warning(msg)
@@ -165,15 +271,28 @@ const scanner = createScanner({
 })
 
 onMounted(async () => {
-  await Promise.all([loadSuppliers(), loadBrands(), loadModels()])
-  await nextTick()
-  scanInputRef.value?.focus()
+  await loadSuppliers()
+  await ensureEntryCreated()
   scanner.attach()
 })
 
 onUnmounted(() => {
   scanner.detach()
 })
+
+async function ensureEntryCreated() {
+  if (currentEntryId.value) return
+  try {
+    const entry = await createPurchaseEntry({
+      supplierId: form.value.supplierId || undefined,
+      remark: form.value.remark || undefined,
+      storeId: userStore.effectiveStoreId || undefined,
+    })
+    currentEntryId.value = entry.id
+  } catch {
+    ElMessage.error('创建入库单失败')
+  }
+}
 
 async function loadSuppliers() {
   try {
@@ -183,107 +302,93 @@ async function loadSuppliers() {
   }
 }
 
-async function loadBrands() {
-  try {
-    brands.value = await getBrands()
-  } catch {
-    brands.value = []
+function onSkuSelect(sku: SkuData) {
+  selectedSku.value = sku
+  ElMessage.success(`已选择: ${sku.brandName} ${sku.modelName} - ${sku.color} / ${sku.storage}`)
+}
+
+function onScanError(msg: string) {
+  ElMessage.warning(msg)
+}
+
+async function handleSingleAdd() {
+  if (!canAddSingle.value) return
+  if (!selectedSku.value?.id) {
+    ElMessage.warning('请先选择商品')
+    return
   }
-}
 
-async function loadModels() {
+  await ensureEntryCreated()
+  if (!currentEntryId.value) return
+
+  const imei = singleImei.value.trim()
   try {
-    allModels.value = await getModels()
-  } catch {
-    allModels.value = []
-  }
-}
-
-function onBrandChange() {
-  manualModelId.value = undefined
-}
-
-async function handleScan() {
-  const code = scanCode.value.trim()
-  if (!code) return
-  await handleScanCode(code)
-  scanCode.value = ''
-}
-
-async function handleScanCode(code: string) {
-  try {
-    if (!currentEntryId.value) {
-      const entry = await createPurchaseEntry({
-        supplierId: form.value.supplierId!,
-        remark: form.value.remark,
-        storeId: userStore.effectiveStoreId || undefined,
-      })
-      currentEntryId.value = entry.id
-    }
-
-    const result = await scanPurchaseEntry(currentEntryId.value!, code)
-
-    const existing = entryItems.value.find(item => item.skuId === result.skuId)
-    if (existing) {
-      existing.quantity += 1
-    } else {
-      entryItems.value.push({
-        skuId: result.skuId,
-        brandName: result.brandName || '',
-        modelName: result.modelName || '',
-        color: result.color || '',
-        storage: result.storage || '',
-        barcode: result.barcode || code,
-        quantity: 1,
-        costPrice: result.costPrice || 0,
-      })
-    }
-
-    ElMessage.success(`已添加: ${result.modelName} ${result.color || ''}`)
+    const item = await addPurchaseItem(currentEntryId.value, {
+      skuId: selectedSku.value.id,
+      imei,
+      unitPrice: singleUnitPrice.value!,
+    })
+    items.value.push(item)
+    ElMessage.success(`已添加: ${imei}`)
+    singleImei.value = ''
+    singleUnitPrice.value = undefined
+    await nextTick()
+    singleImeiRef.value?.focus()
   } catch (err: any) {
-    const msg = err?.response?.data?.message || '扫码失败'
+    const msg = err?.response?.data?.message || `添加 IMEI ${imei} 失败`
     ElMessage.error(msg)
   }
 }
 
-async function addManualItem() {
-  const brandId = manualBrandId.value
-  const modelId = manualModelId.value
-  if (!brandId || !modelId) {
-    ElMessage.warning('请选择品牌和型号')
+async function handleBatchAdd() {
+  if (!canAddBatch.value) return
+  if (!selectedSku.value?.id) {
+    ElMessage.warning('请先选择商品')
     return
   }
 
-  const brand = brands.value.find(b => b.id === brandId)
-  const model = allModels.value.find(m => m.id === modelId)
-  const label = `${brand?.name || ''} ${model?.name || ''}`
+  await ensureEntryCreated()
+  if (!currentEntryId.value) return
 
-  const existing = entryItems.value.find(
-    item => item.brandName === brand?.name && item.modelName === model?.name
-  )
-  if (existing) {
-    existing.quantity += manualQuantity.value
-  } else {
-    entryItems.value.push({
-      modelId: model!.id,
-      brandName: brand?.name || '',
-      modelName: model?.name || '',
-      color: '',
-      storage: '',
-      barcode: '',
-      quantity: manualQuantity.value,
-      costPrice: 0,
+  const imeiList = parsedImeiList.value
+  if (imeiList.length === 0) return
+
+  try {
+    const result = await batchAddPurchaseImei(currentEntryId.value, {
+      skuId: selectedSku.value.id,
+      imeiList,
+      unitPrice: batchUnitPrice.value!,
     })
+    if (Array.isArray(result)) {
+      items.value.push(...result)
+    } else if (result?.items) {
+      items.value.push(...result.items)
+    }
+    ElMessage.success(`成功添加 ${imeiList.length} 台`)
+    batchImeiText.value = ''
+    batchUnitPrice.value = undefined
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || '批量添加失败')
   }
-
-  ElMessage.success(`已添加: ${label}`)
-  manualQuantity.value = 1
-  manualBrandId.value = undefined
-  manualModelId.value = undefined
 }
 
-function removeItem(index: number) {
-  entryItems.value.splice(index, 1)
+async function handleDelete(row: any) {
+  if (!currentEntryId.value || !row.id) return
+  try {
+    await ElMessageBox.confirm(`确定删除 IMEI: ${row.imei}？`, '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    tableLoading.value = true
+    await deletePurchaseItem(currentEntryId.value, row.id)
+    const idx = items.value.findIndex(item => item.id === row.id)
+    if (idx !== -1) items.value.splice(idx, 1)
+    ElMessage.success('已删除')
+  } catch {
+  } finally {
+    tableLoading.value = false
+  }
 }
 
 async function handleConfirm() {
@@ -291,45 +396,21 @@ async function handleConfirm() {
     ElMessage.warning('请先选择供应商')
     return
   }
-
-  if (entryItems.value.length === 0) {
+  if (items.value.length === 0) {
     ElMessage.warning('入库商品清单为空')
     return
   }
-
-  for (const item of entryItems.value) {
-    if (!item.quantity || item.quantity <= 0) {
-      ElMessage.warning('商品数量不能为空或为0')
-      return
-    }
-    if (!item.costPrice || item.costPrice <= 0) {
-      ElMessage.warning(`商品 "${item.brandName} ${item.modelName}" 的进货单价不能为空或为0`)
-      return
-    }
+  if (!currentEntryId.value) {
+    ElMessage.warning('入库单未创建')
+    return
   }
 
   confirmLoading.value = true
   try {
-    if (!currentEntryId.value) {
-      const entry = await createPurchaseEntry({
-        supplierId: form.value.supplierId!,
-        remark: form.value.remark,
-        storeId: userStore.effectiveStoreId || undefined,
-      })
-      currentEntryId.value = entry.id
-    }
-
-    const entryId = currentEntryId.value!
-
-    await confirmPurchaseEntry(entryId, entryItems.value.map(item => ({
-      modelId: item.modelId || 0,
-      quantity: item.quantity,
-      costPrice: item.costPrice,
-    })))
-    ElMessage.success('入库成功')
+    await confirmPurchaseEntry(currentEntryId.value)
+    ElMessage.success(`入库成功，共 ${items.value.length} 台`)
     emit('back')
   } catch {
-    // handled by interceptor
   } finally {
     confirmLoading.value = false
   }
@@ -337,9 +418,14 @@ async function handleConfirm() {
 
 function resetForm() {
   form.value = { supplierId: null, remark: '' }
-  entryItems.value = []
+  items.value = []
   currentEntryId.value = null
-  scanCode.value = ''
+  selectedSku.value = null
+  singleImei.value = ''
+  singleUnitPrice.value = undefined
+  batchImeiText.value = ''
+  batchUnitPrice.value = undefined
+  skuSelectorRef.value?.focus()
 }
 </script>
 
@@ -357,6 +443,8 @@ function resetForm() {
   --pbm-blue-dim: rgba(59,130,246,0.12);
   --pbm-red: #dc3545;
   --pbm-red-dim: rgba(220,53,69,0.12);
+  --pbm-green: #22c55e;
+  --pbm-green-dim: rgba(34,197,94,0.12);
   --pbm-radius: 6px;
   --pbm-font: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --pbm-mono: "SF Mono", "JetBrains Mono", "Cascadia Code", monospace;
@@ -373,7 +461,6 @@ function resetForm() {
   background: var(--pbm-bg);
 }
 
-/* ─── Header ─── */
 .pbm-header {
   display: flex;
   align-items: center;
@@ -386,7 +473,6 @@ function resetForm() {
 .pbm-title { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: var(--pbm-text); margin: 0; }
 .pbm-subtitle { font-size: 12px; color: var(--pbm-text-dim); letter-spacing: 0.4px; text-transform: uppercase; font-family: var(--pbm-mono); }
 
-/* ─── Body ─── */
 .pbm-body {
   flex: 1;
   display: flex;
@@ -397,11 +483,10 @@ function resetForm() {
   gap: 16px;
 }
 
-/* ─── Section Card ─── */
 .pbm-section-card {
   background: var(--pbm-surface);
   border: 1px solid var(--pbm-border);
-  border-radius: 6px;
+  border-radius: var(--pbm-radius);
   padding: 20px;
 }
 .pbm-section-card h3 {
@@ -416,24 +501,201 @@ function resetForm() {
   padding: 20px 0;
 }
 
-/* ─── Manual add row ─── */
-.pbm-manual-row {
+.pbm-mode-toggle {
+  display: flex;
+  gap: 12px;
+}
+.pbm-radio-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pbm-text-dim);
+  background: var(--pbm-bg);
+  user-select: none;
+}
+.pbm-radio-card input { display: none; }
+.pbm-radio-card:hover { border-color: var(--pbm-text-dim); }
+.pbm-radio-card.active {
+  border-color: var(--pbm-accent);
+  color: var(--pbm-text);
+  background: var(--pbm-accent-glow);
+}
+.pbm-radio-card svg { flex-shrink: 0; }
+
+.pbm-entry-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
   flex-wrap: wrap;
 }
-.pbm-manual-row :deep(.el-select) { width: auto; }
-.pbm-manual-row :deep(.el-select .el-input__wrapper) {
-  background: #f5f0eb;
+.pbm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pbm-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pbm-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pbm-scan-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--pbm-bg);
   border: 1px solid var(--pbm-border);
-  box-shadow: none;
+  border-radius: var(--pbm-radius);
+  min-width: 260px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pbm-scan-input-wrapper:focus-within {
+  border-color: var(--pbm-accent);
+  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
+}
+.pbm-scan-input-icon {
+  color: var(--pbm-text-dim);
+  flex-shrink: 0;
+}
+.pbm-scan-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--pbm-text);
+  font-family: var(--pbm-mono);
+}
+.pbm-scan-input::placeholder {
+  color: rgba(138,127,114,0.4);
+  font-family: var(--pbm-font);
+}
+
+.pbm-number-input {
+  padding: 8px 12px;
+  background: var(--pbm-bg);
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  font-size: 14px;
+  color: var(--pbm-text);
+  font-family: var(--pbm-mono);
+  min-width: 140px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pbm-number-input:focus {
+  border-color: var(--pbm-accent);
+  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
+}
+.pbm-number-input::placeholder {
+  color: rgba(138,127,114,0.4);
+  font-family: var(--pbm-font);
+}
+
+.pbm-textarea {
+  width: 100%;
+  max-width: 460px;
+  padding: 10px 12px;
+  background: var(--pbm-bg);
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  font-size: 13px;
+  color: var(--pbm-text);
+  font-family: var(--pbm-mono);
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pbm-textarea:focus {
+  border-color: var(--pbm-accent);
+  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
+}
+.pbm-textarea::placeholder {
+  color: rgba(138,127,114,0.4);
+  font-family: var(--pbm-font);
+}
+
+.pbm-selected-sku-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--pbm-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pbm-batch-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  max-width: 460px;
+}
+.pbm-batch-count {
+  font-size: 12px;
+  color: var(--pbm-text-dim);
+  font-family: var(--pbm-mono);
+  font-weight: 600;
+}
+.pbm-batch-count--ok {
+  color: var(--pbm-green);
+}
+
+.pbm-summary {
+  padding: 12px 16px;
+  background: var(--pbm-bg);
+  border-radius: var(--pbm-radius);
+  font-size: 14px;
+  color: var(--pbm-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pbm-summary strong { font-weight: 700; }
+.pbm-summary-divider { color: var(--pbm-border); margin: 0 4px; }
+
+.pbm-table-wrapper {
+  margin-bottom: 12px;
+}
+.pbm-table-wrapper :deep(.el-table) {
+  --el-table-border-color: var(--pbm-border);
+  --el-table-header-bg-color: #f0ebe5;
+  --el-table-tr-bg-color: #fff;
+  --el-table-row-hover-bg-color: var(--pbm-surface-hover);
+  --el-table-current-row-bg-color: rgba(201,149,60,0.06);
+  --el-table-text-color: var(--pbm-text);
+  --el-table-header-text-color: var(--pbm-text-dim);
+  background: var(--pbm-surface);
+  border: 1px solid var(--pbm-border);
   border-radius: var(--pbm-radius);
 }
-.pbm-manual-row :deep(.el-select .el-input__wrapper:hover) { border-color: var(--pbm-text-dim); }
-.pbm-manual-row :deep(.el-select .el-input__wrapper.is-focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
+.pbm-table-wrapper :deep(.el-table__header-wrapper) { border-bottom: 1px solid var(--pbm-border); }
+.pbm-table-wrapper :deep(.el-table__header th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.pbm-table-wrapper :deep(.el-table__body tr.el-table__row--striped) { background: #faf7f4; }
+.pbm-table-wrapper :deep(.el-table__inner-wrapper::before),
+.pbm-table-wrapper :deep(.el-table__inner-wrapper::after) { display: none; }
+.pbm-table-wrapper :deep(.el-table__body-wrapper) { overflow-y: auto; }
+.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
+.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: #d5ccc0; border-radius: 3px; }
 
-/* ─── Buttons ─── */
+.pbm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 0 4px;
+}
+
 .pbm-btn-accent {
   display: inline-flex;
   align-items: center;
@@ -478,9 +740,8 @@ function resetForm() {
   cursor: pointer;
   transition: all 0.12s;
 }
-.pbm-icon-btn:hover { background: var(--pbm-blue-dim); color: var(--pbm-blue); }
-.pbm-icon-btn--danger:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
-.pbm-icon-btn--sm { width: 24px; height: 24px; }
+.pbm-icon-btn:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
+.pbm-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .pbm-btn-back {
   display: inline-flex;
@@ -498,118 +759,13 @@ function resetForm() {
 }
 .pbm-btn-back:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); background: var(--pbm-surface-hover); }
 
-/* ─── Scan Input ─── */
-.pbm-scan-input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-  max-width: 480px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+@keyframes pbm-spin {
+  to { transform: rotate(360deg); }
 }
-.pbm-scan-input-wrapper:focus-within {
-  border-color: var(--pbm-accent);
-  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
-}
-.pbm-scan-input-icon {
-  color: var(--pbm-text-dim);
-  flex-shrink: 0;
-}
-.pbm-scan-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 14px;
-  color: var(--pbm-text);
-  font-family: var(--pbm-font);
-}
-.pbm-scan-input::placeholder {
-  color: rgba(138,127,114,0.4);
+.pbm-spinner {
+  animation: pbm-spin 0.8s linear infinite;
 }
 
-/* ─── Table ─── */
-.pbm-table-wrapper {
-  margin-bottom: 8px;
-}
-.pbm-table-wrapper :deep(.el-table) {
-  --el-table-border-color: var(--pbm-border);
-  --el-table-header-bg-color: #f0ebe5;
-  --el-table-tr-bg-color: #fff;
-  --el-table-row-hover-bg-color: var(--pbm-surface-hover);
-  --el-table-current-row-bg-color: rgba(201,149,60,0.06);
-  --el-table-text-color: var(--pbm-text);
-  --el-table-header-text-color: var(--pbm-text-dim);
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-}
-.pbm-table-wrapper :deep(.el-table__header-wrapper) { border-bottom: 1px solid var(--pbm-border); }
-.pbm-table-wrapper :deep(.el-table__header th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-.pbm-table-wrapper :deep(.el-table__body tr.el-table__row--striped) { background: #faf7f4; }
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::before),
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::after) { display: none; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper) { overflow-y: auto; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: #d5ccc0; border-radius: 3px; }
-
-/* ─── Form Actions ─── */
-.pbm-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 0 0 4px;
-}
-
-/* ─── Dialog overrides ─── */
-:deep(.pbm-dialog) { border-radius: 8px; overflow: hidden; }
-:deep(.pbm-dialog .el-dialog) {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: 8px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.15);
-}
-:deep(.pbm-dialog .el-dialog__header) { padding: 16px 24px; border-bottom: 1px solid var(--pbm-border); margin: 0; }
-:deep(.pbm-dialog .el-dialog__title) { font-size: 15px; font-weight: 600; color: var(--pbm-text); }
-:deep(.pbm-dialog .el-dialog__body) { padding: 20px 24px; }
-:deep(.pbm-dialog .el-dialog__footer) {
-  padding: 12px 24px 16px;
-  border-top: 1px solid var(--pbm-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-:deep(.pbm-dialog .el-dialog__close) { color: var(--pbm-text-dim); }
-:deep(.pbm-dialog .el-dialog__close:hover) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-form-item__label) { color: var(--pbm-text-dim); font-size: 13px; }
-:deep(.pbm-dialog .el-input__wrapper),
-:deep(.pbm-dialog .el-select__wrapper),
-:deep(.pbm-dialog .el-textarea__inner) {
-  background: #f5f0eb;
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-}
-:deep(.pbm-dialog .el-input__wrapper:hover),
-:deep(.pbm-dialog .el-select__wrapper:hover),
-:deep(.pbm-dialog .el-textarea__inner:hover) { border-color: var(--pbm-text-dim); }
-:deep(.pbm-dialog .el-input__wrapper.is-focus),
-:deep(.pbm-dialog .el-select__wrapper.is-focus),
-:deep(.pbm-dialog .el-textarea__inner:focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-:deep(.pbm-dialog .el-input__inner) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-input__inner::placeholder) { color: rgba(138,127,114,0.4); }
-:deep(.pbm-dialog .el-input-number__increase),
-:deep(.pbm-dialog .el-input-number__decrease) { background: #f0ebe5; color: var(--pbm-text-dim); border-color: var(--pbm-border); }
-:deep(.pbm-dialog .el-select-dropdown) { background: var(--pbm-surface); border: 1px solid var(--pbm-border); }
-:deep(.pbm-dialog .el-select-dropdown__item) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-select-dropdown__item.hover) { background: var(--pbm-surface-hover); }
-:deep(.pbm-dialog .el-select-dropdown__item.selected) { color: var(--pbm-accent); background: var(--pbm-accent-glow); font-weight: 600; }
-
-/* ─── Scrollbar ─── */
 .pbm-body::-webkit-scrollbar { width: 4px; }
 .pbm-body::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }
 </style>

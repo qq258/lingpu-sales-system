@@ -185,10 +185,10 @@ model pch_purchase_entry {
 }
 
 model pch_purchase_item {
-  id         Int   @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   entry_id   Int
   sku_id     Int
-  quantity   Int
+  imei       String
   unit_price Float
   subtotal   Float?
 
@@ -197,6 +197,7 @@ model pch_purchase_item {
 
   @@index([entry_id])
   @@index([sku_id])
+  @@index([imei])
 }
 
 model wh_inventory {
