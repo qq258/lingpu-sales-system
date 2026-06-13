@@ -133,7 +133,20 @@ export async function getSkus(params?: {
   if (params?.page) apiParams.page = params.page
   if (params?.pageSize) apiParams.pageSize = params.pageSize
   const res: any = await request.get('/products/skus', { params: apiParams })
-  return res.data
+  const list: any[] = res.data || []
+  const mapped: SkuData[] = list.map((s: any) => ({
+    id: s.id,
+    brandId: s.model?.brand?.id,
+    brandName: s.model?.brand?.name || '',
+    modelId: s.model_id,
+    modelName: s.model?.name || '',
+    color: s.color || '',
+    storage: [s.ram, s.rom].filter(Boolean).join('/') || '',
+    price: s.sale_price || 0,
+    costPrice: s.cost_price || 0,
+    barcode: s.manufacturer_barcode || '',
+  }))
+  return { list: mapped, total: mapped.length }
 }
 
 export async function createSku(data: SkuData): Promise<SkuData> {

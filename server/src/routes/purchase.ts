@@ -396,6 +396,135 @@ router.delete('/purchase-entries/:entryId/items/:itemId', async (req: Request, r
   }
 });
 
+// 快捷确认入库：创建入库单 + 保存所有items + 确认（一次完成）
+router.post('/purchase-entries/quick-confirm', async (req: Request, res: Response) => {
+  try {
+    const { supplier_id, remark, items } = req.body;
+    const storeId = getStoreId(req);
+    if (!storeId) {
+      const r: ApiResponse = { code: 400, message: '无法确定门店' };
+      return res.status(400).json(r);
+    }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      const r: ApiResponse = { code: 400, message: '入库商品不能为空' };
+      return res.status(400).json(r);
+    }
+
+    const store = await prisma.sys_store.findUnique({ where: { id: storeId } });
+    const entryNo = await generateOrderNo('PO', store!.code);
+
+    await prisma.$transaction(async (tx) => {
+      // ① 创建入库单
+      const entry = await tx.pch_purchase_entry.create({
+        data: {
+          entry_no: entryNo,
+          store_id: storeId,
+          supplier_id: supplier_id || null,
+          operator_id: req.user!.userId,
+          remark,
+          status: 'pending',
+        },
+      });
+
+      let totalAmount = 0;
+
+      // ② 逐条创建入库明细并校验 IMEI
+      for (const item of items) {
+        const { sku_id, imei, unit_price } = item;
+        if (!sku_id || !imei) {
+          throw new Error('SKU和IMEI不能为空');
+        }
+
+        const existing = await tx.wh_inventory_imei.findUnique({ where: { imei } });
+        if (existing) {
+          throw new Error(`IMEI ${imei} 已存在于系统中`);
+        }
+
+        const subtotal = unit_price || 0;
+        totalAmount += subtotal;
+
+        await tx.pch_purchase_item.create({
+          data: {
+            entry_id: entry.id,
+            sku_id,
+            imei,
+            unit_price: unit_price || 0,
+            subtotal,
+          },
+        });
+
+        // ③ 写入 wh_inventory_imei
+        await tx.wh_inventory_imei.create({
+          data: {
+            sku_id,
+            store_id: storeId,
+            imei,
+            status: 'in_stock',
+            entry_id: entry.id,
+          },
+        });
+      }
+
+      // ④ 更新入库单状态和总金额
+      await tx.pch_purchase_entry.update({
+        where: { id: entry.id },
+        data: { status: 'confirmed', total_amount: totalAmount },
+      });
+
+      // ⑤ 按 SKU 分组更新库存汇总
+      const skuGroups: Record<number, typeof items> = {};
+      for (const item of items) {
+        if (!skuGroups[item.sku_id]) skuGroups[item.sku_id] = [];
+        skuGroups[item.sku_id].push(item);
+      }
+
+      for (const [skuIdStr, groupItems] of Object.entries(skuGroups)) {
+        const skuId = parseInt(skuIdStr);
+        const count = groupItems.length;
+
+        const inventory = await tx.wh_inventory.findUnique({
+          where: { sku_id_store_id: { sku_id: skuId, store_id: storeId } },
+        });
+
+        const qtyBefore = inventory?.quantity || 0;
+        const qtyAfter = qtyBefore + count;
+
+        if (inventory) {
+          await tx.wh_inventory.update({
+            where: { id: inventory.id },
+            data: { quantity: qtyAfter },
+          });
+        } else {
+          await tx.wh_inventory.create({
+            data: { sku_id: skuId, store_id: storeId, quantity: count },
+          });
+        }
+
+        await tx.wh_inventory_log.create({
+          data: {
+            sku_id: skuId,
+            store_id: storeId,
+            change_type: 'purchase_in',
+            qty_before: qtyBefore,
+            qty_change: count,
+            qty_after: qtyAfter,
+            ref_type: 'purchase_entry',
+            ref_id: entry.id,
+            operator_id: req.user!.userId,
+            remark: `入库单确认: ${entryNo}`,
+          },
+        });
+      }
+    });
+
+    const r: ApiResponse = { code: 200, message: '入库成功' };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
 // 确认入库：校验IMEI → 写入 wh_inventory_imei → 更新库存
 router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) => {
   try {

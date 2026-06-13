@@ -23,7 +23,6 @@ export function createScanner(options: ScannerOptions) {
           timer = null
         }
       }
-      e.preventDefault()
       return
     }
 
@@ -44,11 +43,8 @@ export function createScanner(options: ScannerOptions) {
         clearTimeout(timer)
       }
       timer = setTimeout(() => {
-        if (buffer.length > 0 && buffer.length < 4) {
-          if (onError) onError('扫码识别失败，请重试')
-        }
         buffer = ''
-      }, 200)
+      }, 300)
     }
   }
 

@@ -114,3 +114,22 @@ export async function confirmPurchaseEntry(entryId: number): Promise<any> {
   const res: any = await request.put(`/purchase/purchase-entries/${entryId}/confirm`)
   return res.data
 }
+
+export async function quickConfirmPurchaseEntry(data: {
+  supplierId?: number | null
+  remark?: string
+  storeId?: number
+  items: Array<{ skuId: number; imei: string; unitPrice: number }>
+}): Promise<any> {
+  const res: any = await request.post('/purchase/purchase-entries/quick-confirm', {
+    supplier_id: data.supplierId,
+    remark: data.remark,
+    store_id: data.storeId,
+    items: data.items.map(i => ({
+      sku_id: i.skuId,
+      imei: i.imei,
+      unit_price: i.unitPrice,
+    })),
+  })
+  return res.data
+}

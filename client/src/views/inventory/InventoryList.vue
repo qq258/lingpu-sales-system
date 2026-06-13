@@ -3,7 +3,7 @@
     <header class="pbm-header">
       <div class="pbm-header-left">
         <h1 class="pbm-title">库存查询</h1>
-        <span class="pbm-subtitle">Inventory Query</span>
+        <span class="pbm-subtitle">IMEI Inventory</span>
       </div>
     </header>
 
@@ -13,9 +13,15 @@
           <div class="pbm-search-group">
             <div class="pbm-search-input-wrapper">
               <svg class="pbm-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input v-model="searchKeyword" class="pbm-search-input" placeholder="搜索商品名称 / 条码" @keyup.enter="loadInventory" />
+              <input v-model="searchKeyword" class="pbm-search-input" placeholder="搜索 IMEI / 商品名称" @keyup.enter="loadImeiList" />
             </div>
-            <button class="pbm-btn-accent" @click="loadInventory">
+            <el-select v-model="searchBrandId" placeholder="品牌" clearable filterable size="small" style="width:130px;" @change="onBrandChange">
+              <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
+            </el-select>
+            <el-select v-model="searchModelId" placeholder="型号" clearable filterable size="small" style="width:130px;" :disabled="!searchBrandId">
+              <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
+            </el-select>
+            <button class="pbm-btn-accent" @click="loadImeiList">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <span>查询</span>
             </button>
@@ -24,7 +30,7 @@
         </div>
 
         <div class="pbm-table-wrapper">
-          <el-table :data="inventoryList" stripe v-loading="loading" size="small" element-loading-background="rgba(245,240,235,0.8)">
+          <el-table :data="imeiList" stripe v-loading="loading" size="small" element-loading-background="rgba(245,240,235,0.8)">
             <el-table-column type="index" label="#" width="48" align="center" />
             <el-table-column label="商品信息" min-width="200">
               <template #default="{ row }">
@@ -32,30 +38,13 @@
                 {{ row.modelName }} - {{ row.color }} / {{ row.storage }}
               </template>
             </el-table-column>
-            <el-table-column prop="barcode" label="条码" width="140" />
+            <el-table-column label="IMEI" width="170" prop="imei" />
             <el-table-column prop="storeName" label="门店" width="120" />
-            <el-table-column prop="quantity" label="库存数量" width="100" align="center">
+            <el-table-column label="是否售出" width="100" align="center">
               <template #default="{ row }">
-                <span class="pbm-qty-badge" :class="{
-                  'pbm-qty-badge--danger': (row.quantity ?? 0) <= 0,
-                  'pbm-qty-badge--warn': (row.quantity ?? 0) > 0 && (row.quantity ?? 0) <= 5,
-                  'pbm-qty-badge--ok': (row.quantity ?? 0) > 5
-                }">{{ row.quantity ?? 0 }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="price" label="售价" width="100" align="center">
-              <template #default="{ row }">¥{{ row.price?.toFixed(2) }}</template>
-            </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="{ row }">
-                <div class="pbm-cell-actions">
-                  <button class="pbm-icon-btn pbm-icon-btn--sm" title="编辑售价" @click="openEditDialog(row)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
-                  <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" @click="handleDelete(row)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                  </button>
-                </div>
+                <span :class="['pbm-status-tag', row.isSold ? 'pbm-status-tag--sold' : 'pbm-status-tag--ok']">
+                  {{ row.isSold ? '是' : '否' }}
+                </span>
               </template>
             </el-table-column>
           </el-table>
@@ -67,130 +56,74 @@
             v-model:page-size="pageSize"
             :total="total"
             layout="total, prev, pager, next"
-            @change="loadInventory"
+            @change="loadImeiList"
           />
         </div>
       </div>
     </div>
-
-    <el-dialog v-model="editDialogVisible" title="编辑商品售价" width="420px" :close-on-click-modal="false" class="pbm-dialog">
-      <el-form :model="editForm" label-width="100px" size="default">
-        <el-form-item label="商品信息">
-          <span style="font-size:13px;color:var(--pbm-text);">
-            <span class="pbm-tag-brand">{{ editForm.brandName }}</span>
-            {{ editForm.modelName }} - {{ editForm.color }} / {{ editForm.storage }}
-          </span>
-        </el-form-item>
-        <el-form-item label="当前售价">
-          <span style="font-size:14px;font-weight:600;color:var(--pbm-text);">¥{{ editForm.oldPrice?.toFixed(2) }}</span>
-        </el-form-item>
-        <el-form-item label="新售价" required>
-          <el-input-number v-model="editForm.newPrice" :min="0" :precision="2" :step="100" controls-position="right" style="width:200px;" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <button class="pbm-btn-plain" @click="editDialogVisible = false">取消</button>
-        <button class="pbm-btn-accent" :disabled="editForm.newPrice < 0 || editSaving" @click="handleSavePrice">{{ editSaving ? '保存中...' : '保存' }}</button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getInventory, deleteInventory, updateInventory } from '@/api/inventory'
+import { getInventoryImeiList } from '@/api/inventory'
+import { getBrands, getModels } from '@/api/product'
 
 const userStore = useUserStore()
 const loading = ref(false)
-const inventoryList = ref<any[]>([])
+const imeiList = ref<any[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const searchKeyword = ref('')
+const searchBrandId = ref<number | undefined>()
+const searchModelId = ref<number | undefined>()
+const brands = ref<any[]>([])
+const models = ref<any[]>([])
 
-async function loadInventory() {
+async function loadImeiList() {
   loading.value = true
   try {
     const params: any = { page: page.value, pageSize: pageSize.value }
     if (searchKeyword.value) params.keyword = searchKeyword.value
+    if (searchBrandId.value) params.brand_id = searchBrandId.value
+    if (searchModelId.value) params.model_id = searchModelId.value
     if (userStore.effectiveStoreId) params.storeId = userStore.effectiveStoreId
-    const result = await getInventory(params)
-    inventoryList.value = result.list
+    const result = await getInventoryImeiList(params)
+    imeiList.value = result.list
     total.value = result.total
   } catch {
-    inventoryList.value = []
+    imeiList.value = []
     total.value = 0
   } finally {
     loading.value = false
   }
 }
 
-async function handleDelete(row: any) {
+async function loadBrands() {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除 "${row.brandName} ${row.modelName} - ${row.color} / ${row.storage}" 的库存记录吗？`,
-      '确认删除',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
-    )
-    await deleteInventory(row.id)
-    ElMessage.success('删除成功')
-    await loadInventory()
+    brands.value = await getBrands()
   } catch {
-    // cancelled
+    brands.value = []
   }
 }
 
-const editDialogVisible = ref(false)
-const editSaving = ref(false)
-const editForm = ref<{
-  id: number
-  brandName: string
-  modelName: string
-  color: string
-  storage: string
-  oldPrice: number
-  newPrice: number
-}>({
-  id: 0,
-  brandName: '',
-  modelName: '',
-  color: '',
-  storage: '',
-  oldPrice: 0,
-  newPrice: 0,
-})
-
-function openEditDialog(row: any) {
-  editForm.value = {
-    id: row.id,
-    brandName: row.brandName || '',
-    modelName: row.modelName || '',
-    color: row.color || '',
-    storage: row.storage || '',
-    oldPrice: row.price || 0,
-    newPrice: row.price || 0,
-  }
-  editDialogVisible.value = true
-}
-
-async function handleSavePrice() {
-  editSaving.value = true
-  try {
-    await updateInventory(editForm.value.id, { sale_price: editForm.value.newPrice })
-    ElMessage.success('售价更新成功')
-    editDialogVisible.value = false
-    await loadInventory()
-  } catch {
-    // handled by interceptor
-  } finally {
-    editSaving.value = false
+async function onBrandChange() {
+  searchModelId.value = undefined
+  models.value = []
+  if (searchBrandId.value) {
+    try {
+      models.value = await getModels(searchBrandId.value)
+    } catch {
+      models.value = []
+    }
   }
 }
 
 onMounted(() => {
-  loadInventory()
+  loadBrands()
+  loadImeiList()
 })
 </script>
 
@@ -253,35 +186,6 @@ onMounted(() => {
 .pbm-btn-accent:hover { background: #dba84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,149,60,0.3); }
 .pbm-btn-accent:active { transform: translateY(0); }
 .pbm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-
-.pbm-btn-plain {
-  padding: 8px 20px;
-  background: transparent;
-  color: var(--pbm-text-dim);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.pbm-btn-plain:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); }
-
-.pbm-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--pbm-text-dim);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.pbm-icon-btn:hover { background: var(--pbm-blue-dim); color: var(--pbm-blue); }
-.pbm-icon-btn--danger:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
-.pbm-icon-btn--sm { width: 24px; height: 24px; }
 
 .pbm-body {
   flex: 1;
@@ -368,8 +272,6 @@ onMounted(() => {
 .pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
 .pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: var(--pbm-border); border-radius: 3px; }
 
-.pbm-cell-actions { display: flex; gap: 2px; }
-
 .pbm-tag-brand {
   display: inline-block;
   background: #ede7e0;
@@ -383,16 +285,16 @@ onMounted(() => {
   vertical-align: middle;
 }
 
-.pbm-qty-badge {
+.pbm-status-tag {
   display: inline-block;
-  font-size: 13px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
+  font-family: var(--pbm-mono);
 }
-.pbm-qty-badge--danger { background: #fce8e8; color: #dc3545; }
-.pbm-qty-badge--warn { background: #fef3e2; color: #c9953c; }
-.pbm-qty-badge--ok { background: #e8f5e9; color: #2e7d32; }
+.pbm-status-tag--ok { background: rgba(34,197,94,0.12); color: #16a34a; }
+.pbm-status-tag--sold { background: rgba(220,53,69,0.12); color: #dc3545; }
 
 .pbm-pagination-wrapper {
   display: flex;
@@ -426,48 +328,6 @@ onMounted(() => {
   font-size: 12px;
   color: var(--pbm-text-dim);
 }
-
-:deep(.pbm-dialog) { border-radius: 8px; overflow: hidden; }
-:deep(.pbm-dialog .el-dialog) {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: 8px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.15);
-}
-:deep(.pbm-dialog .el-dialog__header) { padding: 16px 24px; border-bottom: 1px solid var(--pbm-border); margin: 0; }
-:deep(.pbm-dialog .el-dialog__title) { font-size: 15px; font-weight: 600; color: var(--pbm-text); }
-:deep(.pbm-dialog .el-dialog__body) { padding: 20px 24px; }
-:deep(.pbm-dialog .el-dialog__footer) {
-  padding: 12px 24px 16px;
-  border-top: 1px solid var(--pbm-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-:deep(.pbm-dialog .el-dialog__close) { color: var(--pbm-text-dim); }
-:deep(.pbm-dialog .el-dialog__close:hover) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-form-item__label) { color: var(--pbm-text-dim); font-size: 13px; }
-:deep(.pbm-dialog .el-input__wrapper),
-:deep(.pbm-dialog .el-select__wrapper),
-:deep(.pbm-dialog .el-textarea__inner) {
-  background: #f5f0eb;
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-}
-:deep(.pbm-dialog .el-input__wrapper:hover),
-:deep(.pbm-dialog .el-select__wrapper:hover),
-:deep(.pbm-dialog .el-textarea__inner:hover) { border-color: var(--pbm-text-dim); }
-:deep(.pbm-dialog .el-input__wrapper.is-focus),
-:deep(.pbm-dialog .el-select__wrapper.is-focus),
-:deep(.pbm-dialog .el-textarea__inner:focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-:deep(.pbm-dialog .el-input__inner) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-input__inner::placeholder) { color: rgba(138,127,114,0.4); }
-:deep(.pbm-dialog .el-select-dropdown) { background: var(--pbm-surface); border: 1px solid var(--pbm-border); }
-:deep(.pbm-dialog .el-select-dropdown__item) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-select-dropdown__item.hover) { background: var(--pbm-surface-hover); }
-:deep(.pbm-dialog .el-select-dropdown__item.selected) { color: var(--pbm-accent); background: var(--pbm-accent-glow); font-weight: 600; }
 
 .pbm-body::-webkit-scrollbar { width: 4px; }
 .pbm-body::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }

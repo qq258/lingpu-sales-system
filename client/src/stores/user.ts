@@ -4,6 +4,15 @@ import { login as loginApi, getUserInfo } from '@/api/auth'
 import { getStores } from '@/api/store'
 import router from '@/router'
 
+const STORE_ID_KEY = 'selectedStoreId'
+
+function getStoredStoreId(): number | null {
+  const val = localStorage.getItem(STORE_ID_KEY)
+  if (!val) return null
+  const num = parseInt(val, 10)
+  return isNaN(num) ? null : num
+}
+
 export const useUserStore = defineStore('user', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
   const userInfo = ref<{
@@ -14,7 +23,7 @@ export const useUserStore = defineStore('user', () => {
     storeId: number | null
     storeName: string | null
   } | null>(null)
-  const currentStoreId = ref<number | null>(null)
+  const currentStoreId = ref<number | null>(getStoredStoreId())
   const availableStores = ref<Array<{ id: number; name: string; code: string }>>([])
 
   const isSuperAdmin = computed(() => userInfo.value?.role === 'super_admin')
@@ -42,8 +51,10 @@ export const useUserStore = defineStore('user', () => {
     availableStores.value = result.stores
     if (loginData.storeId) {
       currentStoreId.value = loginData.storeId
+      localStorage.setItem(STORE_ID_KEY, String(loginData.storeId))
     } else if (result.user.storeId) {
       currentStoreId.value = result.user.storeId
+      localStorage.setItem(STORE_ID_KEY, String(result.user.storeId))
     }
     return result.stores
   }
@@ -54,6 +65,7 @@ export const useUserStore = defineStore('user', () => {
     currentStoreId.value = null
     availableStores.value = []
     localStorage.removeItem('token')
+    localStorage.removeItem(STORE_ID_KEY)
     router.push('/login')
   }
 
@@ -65,6 +77,15 @@ export const useUserStore = defineStore('user', () => {
         currentStoreId.value = info.storeId
       }
       await loadStores()
+      // 恢复之前选择的门店（如果可用）
+      const storedId = getStoredStoreId()
+      if (storedId && availableStores.value.some(s => s.id === storedId)) {
+        currentStoreId.value = storedId
+      } else if (storedId) {
+        // 之前选择的门店已不可用，清除
+        currentStoreId.value = null
+        localStorage.removeItem(STORE_ID_KEY)
+      }
     } catch {
       logout()
     }
@@ -81,6 +102,11 @@ export const useUserStore = defineStore('user', () => {
 
   function switchStore(storeId: number | null) {
     currentStoreId.value = storeId
+    if (storeId) {
+      localStorage.setItem(STORE_ID_KEY, String(storeId))
+    } else {
+      localStorage.removeItem(STORE_ID_KEY)
+    }
   }
 
   return {

@@ -27,7 +27,7 @@
 
       <div class="pbm-section-card">
         <h3>选择商品</h3>
-        <SkuSelector ref="skuSelectorRef" mode="purchase" @select="onSkuSelect" @scan-error="onScanError" />
+        <SkuSelector ref="skuSelectorRef" mode="purchase" v-model="unitPrice" @select="onSkuSelect" />
       </div>
 
       <div class="pbm-section-card">
@@ -61,27 +61,15 @@
               />
             </div>
           </div>
-          <div class="pbm-field">
-            <label>单价（元）</label>
-            <el-input-number v-model="singleUnitPrice" :min="0" :precision="2" :step="100" :controls="false" placeholder="0.00" class="pbm-price-input" />
-          </div>
-          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!canAddSingle" @click="handleSingleAdd">
+          <button class="pbm-btn-accent pbm-btn-accent--sm" @click="handleSingleAdd">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>添加</span>
           </button>
-        </div>
-        <div v-if="selectedSku" class="pbm-selected-sku-hint">
-          <el-tag size="small" type="primary">{{ selectedSku.brandName }}</el-tag>
-          {{ selectedSku.modelName }} - {{ selectedSku.color }} / {{ selectedSku.storage }}
         </div>
       </div>
 
       <div v-if="entryMode === 'batch'" class="pbm-section-card">
         <h3>批量粘贴</h3>
-        <div class="pbm-field">
-          <label>单价（元）</label>
-          <el-input-number v-model="batchUnitPrice" :min="0" :precision="2" :step="100" :controls="false" placeholder="0.00" class="pbm-price-input" style="max-width: 200px;" />
-        </div>
         <div class="pbm-field" style="margin-top: 14px;">
           <label>IMEI 列表（每行一个）</label>
           <textarea
@@ -96,28 +84,26 @@
           <span class="pbm-batch-count" :class="{ 'pbm-batch-count--ok': batchImeiLines > 0 }">
             {{ batchImeiLines }} 个 IMEI
           </span>
-          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!canAddBatch" @click="handleBatchAdd">
+          <button class="pbm-btn-accent pbm-btn-accent--sm" @click="handleBatchAdd">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
             <span>解析并添加</span>
           </button>
-        </div>
-        <div v-if="selectedSku" class="pbm-selected-sku-hint">
-          <el-tag size="small" type="primary">{{ selectedSku.brandName }}</el-tag>
-          {{ selectedSku.modelName }} - {{ selectedSku.color }} / {{ selectedSku.storage }}
         </div>
       </div>
 
       <div class="pbm-section-card">
         <h3>本次入库清单</h3>
         <div class="pbm-table-wrapper">
-          <el-table :data="items" border stripe max-height="400" element-loading-background="rgba(245,240,235,0.8)" v-loading="tableLoading">
+          <el-table :data="items" border stripe max-height="400" show-summary :summary-method="tableSummary">
             <el-table-column type="index" label="序号" width="60" />
-            <el-table-column label="商品信息" min-width="180">
+            <el-table-column label="品牌" width="120">
               <template #default="{ row }">
-                <div>
-                  <el-tag size="small" type="primary">{{ row.sku.brandName || row.sku?.model?.brand?.name || '' }}</el-tag>
-                  {{ row.sku.modelName || row.sku?.model?.name || '' }} - {{ row.sku.color || '' }} / {{ row.sku.storage || row.sku?.ram || '' }}{{ row.sku?.ram && row.sku?.rom ? '/' : '' }}{{ row.sku?.rom || '' }}
-                </div>
+                <el-tag size="small" type="primary">{{ row.sku?.brandName || row.sku?.model?.brand?.name || '' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="型号" min-width="140">
+              <template #default="{ row }">
+                {{ row.sku?.modelName || row.sku?.model?.name || '' }}
               </template>
             </el-table-column>
             <el-table-column label="IMEI" min-width="170" prop="imei" />
@@ -126,14 +112,9 @@
                 ¥{{ (row.unitPrice || row.unit_price || 0).toFixed(2) }}
               </template>
             </el-table-column>
-            <el-table-column label="小计" width="120">
-              <template #default="{ row }">
-                ¥{{ (row.unitPrice || row.unit_price || 0).toFixed(2) }}
-              </template>
-            </el-table-column>
             <el-table-column label="操作" width="80" fixed="right">
               <template #default="{ row }">
-                <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" :disabled="tableLoading" @click="handleDelete(row)">
+                <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" @click="handleDelete(row)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                 </button>
               </template>
@@ -142,13 +123,7 @@
         </div>
 
         <div v-if="items.length === 0" class="pbm-section-empty">
-          <el-empty description="暂无入库商品，请选择商品后添加 IMEI" />
-        </div>
-
-        <div v-if="items.length > 0" class="pbm-summary">
-          合计: <strong>{{ items.length }}</strong> 台
-          <span class="pbm-summary-divider">|</span>
-          总金额: <strong>¥{{ totalAmount.toFixed(2) }}</strong>
+          <el-empty description="暂无入库商品，请先在上方选择商品" />
         </div>
       </div>
 
@@ -169,11 +144,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import {
   getSuppliers,
-  createPurchaseEntry,
-  addPurchaseItem,
-  batchAddPurchaseImei,
-  deletePurchaseItem,
-  confirmPurchaseEntry,
+  quickConfirmPurchaseEntry,
 } from '@/api/purchase'
 import type { SupplierData } from '@/api/purchase'
 import type { SkuData } from '@/api/product'
@@ -185,9 +156,9 @@ const emit = defineEmits<{ back: [] }>()
 
 const suppliers = ref<SupplierData[]>([])
 const form = ref({ supplierId: null as number | null, remark: '' })
-const currentEntryId = ref<number | null>(null)
 const confirmLoading = ref(false)
-const tableLoading = ref(false)
+
+let localIdCounter = 0
 
 const skuSelectorRef = ref<InstanceType<typeof SkuSelector>>()
 const selectedSku = ref<SkuData | null>(null)
@@ -196,11 +167,10 @@ const entryMode = ref<'single' | 'batch'>('single')
 
 const singleImeiRef = ref<HTMLInputElement>()
 const singleImei = ref('')
-const singleUnitPrice = ref(0)
+const unitPrice = ref(0)
 
 const batchImeiRef = ref<HTMLTextAreaElement>()
 const batchImeiText = ref('')
-const batchUnitPrice = ref(0)
 
 const items = ref<any[]>([])
 
@@ -213,11 +183,7 @@ const batchImeiLines = computed(() => {
 })
 
 const canAddSingle = computed(() => {
-  return !!(selectedSku.value && singleImei.value.trim() && singleUnitPrice.value > 0)
-})
-
-const canAddBatch = computed(() => {
-  return !!(selectedSku.value && batchImeiLines.value > 0 && batchUnitPrice.value > 0)
+  return !!(selectedSku.value && singleImei.value.trim() && unitPrice.value > 0)
 })
 
 const parsedImeiList = computed(() => {
@@ -227,11 +193,29 @@ const parsedImeiList = computed(() => {
     .filter(l => l.length > 0)
 })
 
-const totalAmount = computed(() => {
-  return items.value.reduce((sum, item) => {
-    return sum + (item.unitPrice || item.unit_price || 0)
-  }, 0)
-})
+function tableSummary(param: { columns: any[]; data: any[] }) {
+  const { columns, data } = param
+  const sums: string[] = []
+  columns.forEach((column, index) => {
+    if (index === 0) {
+      sums[index] = `合计 ${data.length} 台`
+      return
+    }
+    if (column.property === 'imei') {
+      sums[index] = ''
+      return
+    }
+    if (column.label === '单价') {
+      const total = data.reduce((sum, row) => {
+        return sum + (row.unitPrice || row.unit_price || 0)
+      }, 0)
+      sums[index] = `¥${total.toFixed(2)}`
+      return
+    }
+    sums[index] = ''
+  })
+  return sums
+}
 
 const scanner = createScanner({
   onScan: (code) => {
@@ -277,109 +261,103 @@ function onSkuSelect(sku: SkuData) {
   ElMessage.success(`已选择: ${sku.brandName} ${sku.modelName} - ${sku.color} / ${sku.storage}`)
 }
 
-function onScanError(msg: string) {
-  ElMessage.warning(msg)
-}
-
 async function handleSingleAdd() {
-  if (!canAddSingle.value) return
   if (!selectedSku.value?.id) {
-    ElMessage.warning('请先选择商品')
+    ElMessage.warning('请先在上方选择品牌和型号')
+    return
+  }
+  if (!singleImei.value.trim()) {
+    ElMessage.warning('请输入 IMEI')
+    return
+  }
+  if (!unitPrice.value || unitPrice.value <= 0) {
+    ElMessage.warning('请输入单价')
     return
   }
 
-  if (!currentEntryId.value) {
-    try {
-      const entry = await createPurchaseEntry({
-        supplierId: form.value.supplierId ?? undefined,
-        remark: form.value.remark || undefined,
-        storeId: userStore.effectiveStoreId || undefined,
-      })
-      currentEntryId.value = entry.id
-    } catch {
-      ElMessage.error('创建入库单失败')
-      return
-    }
+  const sku = selectedSku.value
+  const item = {
+    id: --localIdCounter,
+    sku_id: sku.id,
+    sku: {
+      brandName: sku.brandName,
+      modelName: sku.modelName,
+      model: { brand: { name: sku.brandName }, name: sku.modelName },
+    },
+    imei: singleImei.value.trim(),
+    unitPrice: unitPrice.value,
+    unit_price: unitPrice.value,
   }
 
-  const imei = singleImei.value.trim()
-  try {
-    const item = await addPurchaseItem(currentEntryId.value!, {
-      skuId: selectedSku.value.id,
-      imei,
-      unitPrice: singleUnitPrice.value,
-    })
-    items.value.push(item)
-    ElMessage.success(`已添加: ${imei}`)
-    singleImei.value = ''
-    singleUnitPrice.value = 0
-    await nextTick()
-    singleImeiRef.value?.focus()
-  } catch (err: any) {
-    const msg = err?.response?.data?.message || `添加 IMEI ${imei} 失败`
-    ElMessage.error(msg)
+  // 检查 IMEI 是否已添加
+  if (items.value.some(i => i.imei === item.imei)) {
+    ElMessage.warning(`IMEI ${item.imei} 已添加到清单中`)
+    return
   }
+
+  items.value.push(item)
+  singleImei.value = ''
+  await nextTick()
+  singleImeiRef.value?.focus()
 }
 
 async function handleBatchAdd() {
-  if (!canAddBatch.value) return
   if (!selectedSku.value?.id) {
-    ElMessage.warning('请先选择商品')
+    ElMessage.warning('请先在上方选择品牌和型号')
+    return
+  }
+  if (!unitPrice.value || unitPrice.value <= 0) {
+    ElMessage.warning('请输入单价')
+    return
+  }
+  if (!batchImeiText.value.trim()) {
+    ElMessage.warning('请输入 IMEI 列表')
     return
   }
 
-  if (!currentEntryId.value) {
-    try {
-      const entry = await createPurchaseEntry({
-        supplierId: form.value.supplierId ?? undefined,
-        remark: form.value.remark || undefined,
-        storeId: userStore.effectiveStoreId || undefined,
-      })
-      currentEntryId.value = entry.id
-    } catch {
-      ElMessage.error('创建入库单失败')
-      return
-    }
-  }
-
+  const sku = selectedSku.value
   const imeiList = parsedImeiList.value
-  if (imeiList.length === 0) return
+  const existingImeis = new Set(items.value.map(i => i.imei))
+  let addedCount = 0
 
-  try {
-    const result = await batchAddPurchaseImei(currentEntryId.value!, {
-      skuId: selectedSku.value.id,
-      imeiList,
-      unitPrice: batchUnitPrice.value,
+  for (const imei of imeiList) {
+    if (existingImeis.has(imei)) continue
+    items.value.push({
+      id: --localIdCounter,
+      sku_id: sku.id,
+      sku: {
+        brandName: sku.brandName,
+        modelName: sku.modelName,
+        model: { brand: { name: sku.brandName }, name: sku.modelName },
+      },
+      imei,
+      unitPrice: unitPrice.value,
+      unit_price: unitPrice.value,
     })
-    if (Array.isArray(result)) {
-      items.value.push(...result)
-    } else if (result?.items) {
-      items.value.push(...result.items)
-    }
-    ElMessage.success(`成功添加 ${imeiList.length} 台`)
-    batchImeiText.value = ''
-    batchUnitPrice.value = 0
-  } catch (err: any) {
-    ElMessage.error(err?.response?.data?.message || '批量添加失败')
+    existingImeis.add(imei)
+    addedCount++
   }
+
+  if (addedCount > 0) {
+    ElMessage.success(`成功添加 ${addedCount} 台`)
+  }
+  if (addedCount < imeiList.length) {
+    ElMessage.warning(`${imeiList.length - addedCount} 个 IMEI 已存在，已跳过`)
+  }
+  batchImeiText.value = ''
 }
 
 async function handleDelete(row: any) {
-  if (!currentEntryId.value || !row.id) return
   try {
     await ElMessageBox.confirm(`确定删除 IMEI: ${row.imei}？`, '确认删除', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
     })
-    tableLoading.value = true
-    await deletePurchaseItem(currentEntryId.value!, row.id)
     const idx = items.value.findIndex(item => item.id === row.id)
     if (idx !== -1) items.value.splice(idx, 1)
     ElMessage.success('已删除')
   } catch {
-  } finally {
-    tableLoading.value = false
   }
 }
 
@@ -393,23 +371,18 @@ async function handleConfirm() {
     return
   }
 
-  if (!currentEntryId.value) {
-    try {
-      const entry = await createPurchaseEntry({
-        supplierId: form.value.supplierId ?? undefined,
-        remark: form.value.remark || undefined,
-        storeId: userStore.effectiveStoreId || undefined,
-      })
-      currentEntryId.value = entry.id
-    } catch {
-      ElMessage.error('创建入库单失败')
-      return
-    }
-  }
-
   confirmLoading.value = true
   try {
-    await confirmPurchaseEntry(currentEntryId.value!)
+    await quickConfirmPurchaseEntry({
+      supplierId: form.value.supplierId,
+      remark: form.value.remark || undefined,
+      storeId: userStore.effectiveStoreId || undefined,
+      items: items.value.map(i => ({
+        skuId: i.sku_id,
+        imei: i.imei,
+        unitPrice: i.unitPrice || i.unit_price || 0,
+      })),
+    })
     ElMessage.success(`入库成功，共 ${items.value.length} 台`)
     emit('back')
   } catch {
@@ -421,12 +394,10 @@ async function handleConfirm() {
 function resetForm() {
   form.value = { supplierId: null, remark: '' }
   items.value = []
-  currentEntryId.value = null
   selectedSku.value = null
   singleImei.value = ''
-  singleUnitPrice.value = 0
+  unitPrice.value = 0
   batchImeiText.value = ''
-  batchUnitPrice.value = 0
   skuSelectorRef.value?.focus()
 }
 </script>
@@ -604,26 +575,6 @@ function resetForm() {
   font-family: var(--pbm-font);
 }
 
-.pbm-price-input {
-  width: 150px;
-}
-.pbm-price-input :deep(.el-input__wrapper) {
-  background: var(--pbm-bg);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-  box-shadow: none;
-  padding: 1px 12px;
-}
-.pbm-price-input :deep(.el-input__wrapper.is-focus) {
-  border-color: var(--pbm-accent);
-  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
-}
-.pbm-price-input :deep(.el-input__inner) {
-  font-family: var(--pbm-mono);
-  font-size: 14px;
-  color: var(--pbm-text);
-}
-
 .pbm-textarea {
   width: 100%;
   max-width: 460px;
@@ -648,15 +599,6 @@ function resetForm() {
   font-family: var(--pbm-font);
 }
 
-.pbm-selected-sku-hint {
-  margin-top: 12px;
-  font-size: 13px;
-  color: var(--pbm-text);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .pbm-batch-footer {
   display: flex;
   align-items: center;
@@ -673,19 +615,6 @@ function resetForm() {
 .pbm-batch-count--ok {
   color: var(--pbm-green);
 }
-
-.pbm-summary {
-  padding: 12px 16px;
-  background: var(--pbm-bg);
-  border-radius: var(--pbm-radius);
-  font-size: 14px;
-  color: var(--pbm-text);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pbm-summary strong { font-weight: 700; }
-.pbm-summary-divider { color: var(--pbm-border); margin: 0 4px; }
 
 .pbm-table-wrapper {
   margin-bottom: 12px;

@@ -184,17 +184,25 @@ async function showDetail(row: any) {
 async function reprint(row: any) {
   try {
     const d = await getPrintData(row.id)
+    console.log("reprint", d)
     printData.value = {
+      storeName: d.store?.name || '',
+      storeAddress: d.store?.address || '',
+      storePhone: d.store?.phone || '',
       orderNo: d.order_no,
       createdAt: formatDateTime(d.created_at),
       cashier: d.operator?.real_name || '',
       customerName: d.customer_name || undefined,
+      customerAddress: d.customer_address || undefined,
+      customerPhone: d.customer_phone || undefined,
       totalAmount: d.total_amount || 0,
       paidAmount: d.actual_amount || 0,
+      changeAmount: d.change_amount || 0,
       remark: d.remark || '',
       items: (d.items || []).map((item: any) => ({
         skuId: item.sku_id,
         skuName: item.sku_name,
+        imei: item.imei || '',
         quantity: item.quantity,
         price: item.unit_price || 0,
       })),

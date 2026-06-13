@@ -160,6 +160,141 @@ router.post('/initial/batch', async (req: Request, res: Response) => {
   }
 });
 
+// 扫码 IMEI 匹配库存（销售开单使用）
+router.get('/scan-imei', async (req: Request, res: Response) => {
+  try {
+    const { imei } = req.query;
+    if (!imei) {
+      const r: ApiResponse = { code: 400, message: 'IMEI不能为空' };
+      return res.status(400).json(r);
+    }
+
+    const record = await prisma.wh_inventory_imei.findUnique({
+      where: { imei: imei as string },
+      include: {
+        sku: {
+          include: { model: { include: { brand: { select: { id: true, name: true } } } } },
+        },
+        store: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!record) {
+      const r: ApiResponse = { code: 404, message: '未找到该IMEI对应的库存记录' };
+      return res.status(404).json(r);
+    }
+
+    if (record.status !== 'in_stock') {
+      const r: ApiResponse = { code: 400, message: `该IMEI(${imei})已售出，无法销售` };
+      return res.status(400).json(r);
+    }
+
+    const storeId = getStoreId(req);
+    if (storeId && record.store_id !== storeId) {
+      const r: ApiResponse = { code: 400, message: `该IMEI(${imei})不属于当前门店` };
+      return res.status(400).json(r);
+    }
+
+    const r: ApiResponse = {
+      code: 200,
+      message: 'success',
+      data: {
+        id: record.id,
+        skuId: record.sku_id,
+        imei: record.imei,
+        brandName: record.sku?.model?.brand?.name || '',
+        modelName: record.sku?.model?.name || '',
+        color: record.sku?.color || '',
+        storage: [record.sku?.ram, record.sku?.rom].filter(Boolean).join('/') || '',
+        salePrice: record.sku?.sale_price || 0,
+        storeName: record.store?.name || '',
+      },
+    };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// IMEI 级别库存列表（每个手机一条记录）
+router.get('/imei-list', async (req: Request, res: Response) => {
+  try {
+    const { keyword, brand_id, model_id, page = '1', pageSize = '20' } = req.query;
+    const storeId = getStoreId(req);
+    const imeiWhere: any = {};
+    if (storeId) imeiWhere.store_id = storeId;
+
+    const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
+    const take = parseInt(pageSize as string);
+
+    // Build sku-level filter
+    const skuFilter: any = {};
+    if (brand_id) skuFilter.model = { brand_id: parseInt(brand_id as string) };
+    if (model_id) skuFilter.model_id = parseInt(model_id as string);
+
+    // Build keyword filter (OR across imei and sku fields)
+    if (keyword) {
+      const keywordFilter = [
+        { imei: { contains: keyword as string } },
+        { sku: { model: { name: { contains: keyword as string } } } },
+        { sku: { manufacturer_barcode: { contains: keyword as string } } },
+      ];
+      // If both brand/model filter and keyword exist, combine with AND
+      if (Object.keys(skuFilter).length > 0) {
+        imeiWhere.AND = [{ sku: skuFilter }, { OR: keywordFilter }];
+      } else {
+        imeiWhere.OR = keywordFilter;
+      }
+    } else if (Object.keys(skuFilter).length > 0) {
+      imeiWhere.sku = skuFilter;
+    }
+
+    const [rawList, total] = await Promise.all([
+      prisma.wh_inventory_imei.findMany({
+        where: imeiWhere,
+        skip,
+        take,
+        orderBy: { id: 'desc' },
+        include: {
+          sku: {
+            include: {
+              model: { include: { brand: { select: { id: true, name: true } } } },
+            },
+          },
+          store: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.wh_inventory_imei.count({ where: imeiWhere }),
+    ]);
+
+    const list = rawList.map((item) => ({
+      id: item.id,
+      skuId: item.sku_id,
+      storeId: item.store_id,
+      imei: item.imei,
+      status: item.status,
+      isSold: item.status !== 'in_stock',
+      brandName: item.sku?.model?.brand?.name || '',
+      modelName: item.sku?.model?.name || '',
+      color: item.sku?.color || '',
+      storage: [item.sku?.ram, item.sku?.rom].filter(Boolean).join('/') || '',
+      storeName: item.store?.name || '',
+      createdAt: item.created_at,
+    }));
+
+    const r: ApiResponse = {
+      code: 200,
+      message: 'success',
+      data: { list, total, page: parseInt(page as string), pageSize: parseInt(pageSize as string) },
+    };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { keyword, page = '1', pageSize = '20' } = req.query;

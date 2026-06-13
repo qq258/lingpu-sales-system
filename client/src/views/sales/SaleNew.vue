@@ -9,61 +9,35 @@
 
     <div class="pbm-body">
       <div class="pbm-section-card">
-        <h3>选择商品</h3>
-        <div class="pbm-search-row">
-          <el-select v-model="selectedBrandId" placeholder="选择品牌" filterable clearable style="width:180px;" @change="onBrandChange">
-            <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
-          </el-select>
-          <el-select v-model="selectedModelId" placeholder="选择型号" filterable clearable style="width:220px;" :disabled="!selectedBrandId">
-            <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
-          </el-select>
-          <button class="pbm-btn-accent" :disabled="!selectedModelId || searching" @click="handleQuery">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <span>{{ searching ? '查询中...' : '查询' }}</span>
-          </button>
-        </div>
-
-        <div v-if="skuResults.length > 0" class="pbm-sku-results">
-          <div class="pbm-sku-result-header">
-            <span class="pbm-section-label">库存列表（{{ skuResults.length }} 个配置）</span>
-          </div>
-          <div class="pbm-table-wrapper pbm-table-wrapper--compact">
-            <el-table :data="skuResults" stripe size="small" max-height="280">
-              <el-table-column label="商品" min-width="180">
-                <template #default="{ row }">
-                  <span class="pbm-tag-brand">{{ row.brandName }}</span>
-                  {{ row.modelName }} - {{ row.color }} / {{ row.storage }}
-                </template>
-              </el-table-column>
-              <el-table-column label="售价" width="90" align="center">
-                <template #default="{ row }">¥{{ row.salePrice?.toFixed(2) }}</template>
-              </el-table-column>
-              <el-table-column label="剩余库存" width="100" align="center">
-                <template #default="{ row }">
-                  <span class="pbm-qty-badge" :class="{
-                    'pbm-qty-badge--danger': row.stock <= 0,
-                    'pbm-qty-badge--warn': row.stock > 0 && row.stock <= 5,
-                    'pbm-qty-badge--ok': row.stock > 5
-                  }">{{ row.stock }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="购买数量" width="130">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.buyQty" :min="1" :max="Math.max(row.stock, 1)" size="small" controls-position="right" style="width:110px;" />
-                </template>
-              </el-table-column>
-              <el-table-column label="" width="100" fixed="right">
-                <template #default="{ row }">
-                  <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="row.stock <= 0 || row.buyQty <= 0" @click="addToCart(row)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span>加入购物车</span>
-                  </button>
-                </template>
-              </el-table-column>
-            </el-table>
+        <h3>扫码添加商品</h3>
+        <p class="pbm-section-desc">支持扫码枪扫描或手动输入 IMEI，自动匹配库存信息</p>
+        <div class="pbm-scan-row">
+          <div class="pbm-scan-input-wrapper">
+            <svg class="pbm-scan-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+            <input
+              ref="imeiInputRef"
+              v-model="scanInput"
+              class="pbm-scan-input"
+              placeholder="扫码枪扫描或手动输入IMEI后按回车"
+              @keyup.enter="handleScan"
+            />
           </div>
         </div>
-        <div v-if="skuResults.length === 0 && queried" class="pbm-empty-hint">该型号暂无SKU或库存为空</div>
+        <div v-if="scanning" class="pbm-scanning-hint">
+          <svg class="pbm-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+          <span>正在查询 IMEI 库存...</span>
+        </div>
+        <div v-if="matchedItem" class="pbm-matched-card">
+          <div class="pbm-matched-info">
+            <div class="pbm-matched-name">
+              <el-tag size="small" type="primary">{{ matchedItem.brandName }}</el-tag>
+              {{ matchedItem.modelName }} - {{ matchedItem.color }} / {{ matchedItem.storage }}
+            </div>
+            <div class="pbm-matched-imei">{{ matchedItem.imei }}</div>
+          </div>
+          <div class="pbm-matched-badge">已添加</div>
+        </div>
+        <div v-if="matchedItem === null && queried && !scanning" class="pbm-empty-hint">未找到该IMEI对应的库存或该商品已售出</div>
       </div>
 
       <div class="pbm-section-card">
@@ -71,43 +45,28 @@
         <div class="pbm-table-wrapper">
           <el-table :data="cartItems" border stripe max-height="360" size="small">
             <el-table-column type="index" label="#" width="44" />
-            <el-table-column label="商品" min-width="180">
+            <el-table-column label="商品名称" min-width="200">
               <template #default="{ row }">
                 <span class="pbm-tag-brand">{{ row.brandName }}</span>
                 {{ row.modelName }} - {{ row.color }} / {{ row.storage }}
               </template>
             </el-table-column>
-            <el-table-column label="单价" width="130">
+            <el-table-column label="IMEI" width="170" prop="imei" />
+            <el-table-column label="售价" width="140">
               <template #default="{ row }">
-                <el-input-number v-model="row.price" :min="0" :precision="2" :step="100" size="small" controls-position="right" style="width:120px;" />
-              </template>
-            </el-table-column>
-            <el-table-column label="数量" width="140">
-              <template #default="{ row, $index }">
-                <div class="quantity-control">
-                  <button class="pbm-btn-plain pbm-btn-plain--xs" :disabled="row.quantity <= 1" @click="row.quantity--">-</button>
-                  <span class="quantity-value">{{ row.quantity }}</span>
-                  <button class="pbm-btn-plain pbm-btn-plain--xs" @click="row.quantity++">+</button>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column label="小计" width="110" align="center">
-              <template #default="{ row }">
-                <span class="pbm-amount-text">¥{{ (row.price * row.quantity).toFixed(2) }}</span>
+                <el-input-number v-model="row.price" :min="0" :precision="2" :step="100" size="small" controls-position="right" style="width:130px;" />
               </template>
             </el-table-column>
             <el-table-column label="" width="60" fixed="right">
               <template #default="{ row, $index }">
-                <div class="pbm-cell-actions">
-                  <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" @click="removeCartItem($index)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                  </button>
-                </div>
+                <button class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" @click="removeCartItem($index)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
               </template>
             </el-table-column>
           </el-table>
         </div>
-        <div v-if="cartItems.length === 0" class="pbm-empty-hint">购物车为空，请在上方选择商品后点击「加入购物车」</div>
+        <div v-if="cartItems.length === 0" class="pbm-empty-hint">购物车为空，请扫码添加商品</div>
       </div>
 
       <div class="pbm-section-card">
@@ -118,12 +77,12 @@
               <div class="pbm-settlement-item-info">
                 <span class="pbm-tag-brand">{{ item.brandName }}</span>
                 <span class="pbm-settlement-item-name">{{ item.modelName }} - {{ item.color }} / {{ item.storage }}</span>
+                <span class="pbm-settlement-item-imei">{{ item.imei }}</span>
               </div>
-              <div class="pbm-settlement-item-qty">x{{ item.quantity }}</div>
-              <div class="pbm-settlement-item-price">¥{{ (item.price * item.quantity).toFixed(2) }}</div>
+              <div class="pbm-settlement-item-price">¥{{ item.price.toFixed(2) }}</div>
             </div>
             <div v-if="cartItems.length === 0" class="pbm-empty-hint" style="padding:12px 0;">
-              暂无商品，请先添加
+              暂无商品，请先扫码添加
             </div>
           </div>
           <el-form :model="settlement" label-width="100px" class="pbm-settlement-form">
@@ -138,6 +97,12 @@
             </el-form-item>
             <el-form-item label="客户称呼">
               <el-input v-model="settlement.customerName" placeholder="可选" style="width:200px;" />
+            </el-form-item>
+            <el-form-item label="客户地址">
+              <el-input v-model="settlement.customerAddress" placeholder="可选" style="width:200px;" />
+            </el-form-item>
+            <el-form-item label="客户电话">
+              <el-input v-model="settlement.customerPhone" placeholder="可选" style="width:200px;" />
             </el-form-item>
             <el-form-item label="备注">
               <el-input v-model="settlement.remark" type="textarea" :rows="2" style="width:280px;" placeholder="可选备注" />
@@ -160,40 +125,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getBrands, getModels } from '@/api/product'
-import { getInventoryByModel } from '@/api/inventory'
+import { getStores } from '@/api/store'
+import { scanImeiForSale } from '@/api/inventory'
 import { createSale } from '@/api/sales'
+import { createScanner } from '@/utils/scanner'
 import PrintReceipt from '@/components/PrintReceipt.vue'
 
 const userStore = useUserStore()
 
-const brands = ref<any[]>([])
-const models = ref<any[]>([])
-const selectedBrandId = ref<number | null>(null)
-const selectedModelId = ref<number | null>(null)
-const skuResults = ref<any[]>([])
-const searching = ref(false)
+const imeiInputRef = ref<HTMLInputElement>()
+const scanInput = ref('')
+const scanning = ref(false)
 const queried = ref(false)
+const matchedItem = ref<any>(null)
+const matchedPrice = ref(0)
 
 const submitLoading = ref(false)
 const printReceiptRef = ref()
 
+const storeInfo = ref({ name: '', address: '', phone: '' })
+
 const cartItems = ref<Array<{
   skuId: number
+  imei: string
   brandName: string
   modelName: string
   color: string
   storage: string
   price: number
-  quantity: number
 }>>([])
 
 const settlement = ref({
   paidAmount: 0,
   customerName: '',
+  customerAddress: '',
+  customerPhone: '',
   remark: '',
 })
 
@@ -201,7 +170,7 @@ const paidAmountAuto = ref(true)
 const lastSaleData = ref<any>(null)
 
 const totalAmount = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  return cartItems.value.reduce((sum, item) => sum + item.price, 0)
 })
 
 const changeAmount = computed(() => {
@@ -220,62 +189,84 @@ function onPaidChange(value: number | undefined) {
   }
 }
 
+const scanner = createScanner({
+  onScan: (code) => {
+    scanInput.value = code
+    handleScan()
+  },
+  onError: (msg) => {
+    ElMessage.warning(msg)
+  },
+})
+
 onMounted(async () => {
+  await nextTick()
+  imeiInputRef.value?.focus()
+  scanner.attach()
+  // 加载当前门店信息
   try {
-    brands.value = await getBrands()
+    const stores = await getStores()
+    const currentId = userStore.effectiveStoreId
+    const store = stores.find((s: any) => s.id === currentId)
+    if (store) {
+      storeInfo.value = { name: store.name, address: store.address || '', phone: store.phone || '' }
+    }
   } catch {
     // ignore
   }
 })
 
-async function onBrandChange() {
-  selectedModelId.value = null
-  skuResults.value = []
-  queried.value = false
-  if (selectedBrandId.value) {
-    try {
-      models.value = await getModels(selectedBrandId.value)
-    } catch {
-      models.value = []
-    }
-  } else {
-    models.value = []
-  }
-}
+onUnmounted(() => {
+  scanner.detach()
+})
 
-async function handleQuery() {
-  if (!selectedModelId.value) return
-  searching.value = true
+async function handleScan() {
+  if (scanning.value) return
+  const code = scanInput.value.trim()
+  if (!code) return
+
+  scanning.value = true
   queried.value = true
+  matchedItem.value = null
+
   try {
-    const result = await getInventoryByModel(selectedModelId.value, userStore.effectiveStoreId || undefined)
-    skuResults.value = result.map((s: any) => ({
-      ...s,
-      buyQty: 1,
-    }))
+    const result = await scanImeiForSale(code, userStore.effectiveStoreId || undefined)
+    matchedItem.value = result
+    matchedPrice.value = result.salePrice || 0
+    // 匹配成功后自动加入购物车
+    nextTick(() => addToCart())
   } catch {
-    skuResults.value = []
+    matchedItem.value = null
   } finally {
-    searching.value = false
+    scanning.value = false
   }
 }
 
-function addToCart(sku: any) {
-  const existing = cartItems.value.find(i => i.skuId === sku.id)
+function addToCart() {
+  if (!matchedItem.value) return
+
+  const existing = cartItems.value.find(i => i.imei === matchedItem.value.imei)
   if (existing) {
-    existing.quantity += sku.buyQty
-  } else {
-    cartItems.value.push({
-      skuId: sku.id,
-      brandName: sku.brandName || '',
-      modelName: sku.modelName || '',
-      color: sku.color || '',
-      storage: sku.storage || '',
-      price: sku.salePrice || 0,
-      quantity: sku.buyQty,
-    })
+    ElMessage.warning(`IMEI ${matchedItem.value.imei} 已在购物车中`)
+    return
   }
-  ElMessage.success(`已添加「${sku.brandName} ${sku.modelName} - ${sku.color}/${sku.storage}」`)
+
+  cartItems.value.push({
+    skuId: matchedItem.value.skuId,
+    imei: matchedItem.value.imei,
+    brandName: matchedItem.value.brandName || '',
+    modelName: matchedItem.value.modelName || '',
+    color: matchedItem.value.color || '',
+    storage: matchedItem.value.storage || '',
+    price: matchedPrice.value,
+  })
+
+  ElMessage.success(`已添加「${matchedItem.value.brandName} ${matchedItem.value.modelName}」`)
+  scanInput.value = ''
+  matchedItem.value = null
+  matchedPrice.value = 0
+  queried.value = false
+  nextTick(() => imeiInputRef.value?.focus())
 }
 
 function removeCartItem(index: number) {
@@ -292,13 +283,13 @@ async function handleCheckout() {
   try {
     const sale = await createSale({
       items: cartItems.value.map(i => ({
-        sku_id: i.skuId,
-        quantity: i.quantity,
+        imei: i.imei,
         unit_price: i.price,
       })),
-      total_amount: totalAmount.value,
       actual_amount: settlement.value.paidAmount,
       customer_name: settlement.value.customerName || undefined,
+      customer_address: settlement.value.customerAddress || undefined,
+      customer_phone: settlement.value.customerPhone || undefined,
       remark: settlement.value.remark || undefined,
       store_id: userStore.effectiveStoreId || undefined,
     })
@@ -307,10 +298,15 @@ async function handleCheckout() {
 
     const now = new Date()
     lastSaleData.value = {
+      storeName: storeInfo.value.name,
+      storeAddress: storeInfo.value.address,
+      storePhone: storeInfo.value.phone,
       orderNo: sale.order_no,
       createdAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`,
       cashier: userStore.userInfo?.realName || '',
       customerName: settlement.value.customerName || undefined,
+      customerAddress: settlement.value.customerAddress || undefined,
+      customerPhone: settlement.value.customerPhone || undefined,
       totalAmount: totalAmount.value,
       paidAmount: settlement.value.paidAmount,
       changeAmount: changeAmount.value,
@@ -318,7 +314,8 @@ async function handleCheckout() {
       items: cartItems.value.map(i => ({
         skuId: i.skuId,
         skuName: `${i.brandName} ${i.modelName} - ${i.color}/${i.storage}`,
-        quantity: i.quantity,
+        imei: i.imei,
+        quantity: 1,
         price: i.price,
       })),
     }
@@ -334,13 +331,13 @@ async function handleCheckout() {
 
 function resetAll() {
   cartItems.value = []
-  settlement.value = { paidAmount: 0, customerName: '', remark: '' }
+  settlement.value = { paidAmount: 0, customerName: '', customerAddress: '', customerPhone: '', remark: '' }
   paidAmountAuto.value = true
-  selectedBrandId.value = null
-  selectedModelId.value = null
-  models.value = []
-  skuResults.value = []
+  scanInput.value = ''
+  matchedItem.value = null
+  matchedPrice.value = 0
   queried.value = false
+  nextTick(() => imeiInputRef.value?.focus())
 }
 </script>
 
@@ -354,6 +351,8 @@ function resetAll() {
   --pbm-text-dim: #8a7f72;
   --pbm-accent: #c9953c;
   --pbm-accent-glow: rgba(201,149,60,0.12);
+  --pbm-green: #22c55e;
+  --pbm-green-dim: rgba(34,197,94,0.12);
   --pbm-blue: #3b82f6;
   --pbm-blue-dim: rgba(59,130,246,0.12);
   --pbm-red: #dc3545;
@@ -403,7 +402,6 @@ function resetAll() {
 .pbm-btn-accent:hover { background: #dba84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,149,60,0.3); }
 .pbm-btn-accent:active { transform: translateY(0); }
 .pbm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.pbm-btn-accent--sm { padding: 5px 12px; font-size: 12px; gap: 4px; }
 
 .pbm-btn-plain {
   padding: 8px 20px;
@@ -416,8 +414,6 @@ function resetAll() {
   transition: all 0.15s;
 }
 .pbm-btn-plain:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); }
-.pbm-btn-plain--xs { padding: 2px 8px; font-size: 12px; min-width: 28px; }
-.pbm-btn-plain:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .pbm-icon-btn {
   display: inline-flex;
@@ -471,33 +467,100 @@ function resetAll() {
   font-weight: 400;
 }
 
-.pbm-search-row {
+.pbm-section-desc {
+  font-size: 12px;
+  color: var(--pbm-text-dim);
+  margin: -10px 0 14px;
+}
+
+.pbm-scan-row {
   display: flex;
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
-
-.pbm-sku-results {
-  margin-top: 16px;
-}
-.pbm-sku-result-header {
+.pbm-scan-input-wrapper {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--pbm-bg);
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  min-width: 320px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.pbm-section-label {
+.pbm-scan-input-wrapper:focus-within {
+  border-color: var(--pbm-accent);
+  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
+}
+.pbm-scan-icon { color: var(--pbm-text-dim); flex-shrink: 0; }
+.pbm-scan-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--pbm-text);
+  font-family: var(--pbm-mono);
+}
+.pbm-scan-input::placeholder {
+  color: rgba(138,127,114,0.4);
+  font-family: var(--pbm-font);
+}
+
+.pbm-matched-card {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #f0f9eb;
+  border: 1px solid #e1f3d8;
+  border-radius: var(--pbm-radius);
+}
+.pbm-scanning-hint {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #f0f5ff;
+  border: 1px solid #d6e4ff;
+  border-radius: var(--pbm-radius);
   font-size: 13px;
-  font-weight: 600;
   color: var(--pbm-text-dim);
+}
+.pbm-spinner {
+  animation: pbm-spin 0.8s linear infinite;
+}
+.pbm-matched-info { flex: 1; }
+.pbm-matched-name {
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.pbm-matched-imei {
+  font-size: 12px;
+  font-family: var(--pbm-mono);
+  color: var(--pbm-text-dim);
+}
+.pbm-matched-badge {
+  flex-shrink: 0;
+  padding: 4px 14px;
+  background: rgba(34,197,94,0.12);
+  color: #16a34a;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--pbm-mono);
 }
 
 .pbm-table-wrapper {
   margin-bottom: 4px;
-}
-.pbm-table-wrapper--compact {
-  margin-bottom: 0;
 }
 .pbm-table-wrapper :deep(.el-table) {
   --el-table-border-color: var(--pbm-border);
@@ -520,8 +583,6 @@ function resetAll() {
 .pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
 .pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: var(--pbm-border); border-radius: 3px; }
 
-.pbm-cell-actions { display: flex; gap: 2px; }
-
 .pbm-tag-brand {
   display: inline-block;
   background: #ede7e0;
@@ -535,41 +596,11 @@ function resetAll() {
   vertical-align: middle;
 }
 
-.pbm-qty-badge {
-  display: inline-block;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.pbm-qty-badge--danger { background: #fce8e8; color: #dc3545; }
-.pbm-qty-badge--warn { background: #fef3e2; color: #c9953c; }
-.pbm-qty-badge--ok { background: #e8f5e9; color: #2e7d32; }
-
 .pbm-empty-hint {
   text-align: center;
   padding: 24px;
   color: var(--pbm-text-dim);
   font-size: 13px;
-}
-
-.quantity-control {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: center;
-}
-.quantity-value {
-  font-size: 15px;
-  font-weight: 600;
-  min-width: 24px;
-  text-align: center;
-  color: var(--pbm-text);
-}
-.pbm-amount-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pbm-red);
 }
 
 .pbm-settlement-layout {
@@ -583,119 +614,54 @@ function resetAll() {
   border-radius: var(--pbm-radius);
   padding: 12px 16px;
   min-height: 60px;
-  background: #faf8f6;
+  background: var(--pbm-bg);
 }
 .pbm-settlement-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 0;
+  justify-content: space-between;
+  padding: 8px 0;
   border-bottom: 1px solid var(--pbm-border);
 }
-.pbm-settlement-item:last-child {
-  border-bottom: none;
-}
+.pbm-settlement-item:last-child { border-bottom: none; }
 .pbm-settlement-item-info {
-  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--pbm-text);
+  flex-direction: column;
+  gap: 2px;
 }
-.pbm-settlement-item-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pbm-settlement-item-qty {
-  font-size: 13px;
-  color: var(--pbm-text-dim);
-  font-family: var(--pbm-mono);
-  white-space: nowrap;
-}
+.pbm-settlement-item-name { font-size: 13px; }
+.pbm-settlement-item-imei { font-size: 11px; font-family: var(--pbm-mono); color: var(--pbm-text-dim); }
 .pbm-settlement-item-price {
   font-size: 14px;
   font-weight: 600;
   color: var(--pbm-red);
-  white-space: nowrap;
-  min-width: 80px;
-  text-align: right;
+  font-family: var(--pbm-mono);
 }
-.pbm-settlement-form {
-  width: 340px;
-  flex-shrink: 0;
-}
+.pbm-settlement-form { width: 320px; flex-shrink: 0; }
 .pbm-amount-total {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: var(--pbm-text);
+  color: var(--pbm-red);
+  font-family: var(--pbm-mono);
 }
 .pbm-change-amount {
-  color: #2e7d32;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pbm-green);
+  font-family: var(--pbm-mono);
 }
+
 .pbm-form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 0 0 4px;
-}
-
-:deep(.el-select__wrapper) {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-  font-size: 13px;
-  min-height: 34px;
-}
-:deep(.el-select__wrapper:hover) { border-color: var(--pbm-text-dim); }
-:deep(.el-select__wrapper.is-focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-:deep(.el-select-dropdown) { background: var(--pbm-surface); border: 1px solid var(--pbm-border); }
-:deep(.el-select-dropdown__item) { color: var(--pbm-text); }
-:deep(.el-select-dropdown__item.hover) { background: var(--pbm-surface-hover); }
-:deep(.el-select-dropdown__item.selected) { color: var(--pbm-accent); background: var(--pbm-accent-glow); font-weight: 600; }
-
-:deep(.el-form-item__label) { color: var(--pbm-text-dim); font-size: 13px; }
-:deep(.el-input__wrapper),
-:deep(.el-textarea__inner) {
-  background: #f5f0eb;
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-}
-:deep(.el-input__wrapper:hover),
-:deep(.el-textarea__inner:hover) { border-color: var(--pbm-text-dim); }
-:deep(.el-input__wrapper.is-focus),
-:deep(.el-textarea__inner:focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-:deep(.el-input__inner) { color: var(--pbm-text); }
-:deep(.el-input__inner::placeholder) { color: rgba(138,127,114,0.4); }
-:deep(.el-input-number__increase),
-:deep(.el-input-number__decrease) { background: #f0ebe5; color: var(--pbm-text-dim); border-color: var(--pbm-border); }
-
-:deep(.pbm-dialog) { border-radius: 8px; overflow: hidden; }
-:deep(.pbm-dialog .el-dialog) {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: 8px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.15);
-}
-:deep(.pbm-dialog .el-dialog__header) { padding: 16px 24px; border-bottom: 1px solid var(--pbm-border); margin: 0; }
-:deep(.pbm-dialog .el-dialog__title) { font-size: 15px; font-weight: 600; color: var(--pbm-text); }
-:deep(.pbm-dialog .el-dialog__body) { padding: 20px 24px; }
-:deep(.pbm-dialog .el-dialog__footer) {
-  padding: 12px 24px 16px;
-  border-top: 1px solid var(--pbm-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  padding: 8px 0;
 }
 
 .pbm-body::-webkit-scrollbar { width: 4px; }
 .pbm-body::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }
+
+@keyframes pbm-spin {
+  to { transform: rotate(360deg); }
+}
 </style>

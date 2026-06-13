@@ -19,6 +19,9 @@ importers:
       element-plus:
         specifier: ^2.8.0
         version: 2.14.2(vue@3.5.38(typescript@5.9.3))
+      jsbarcode:
+        specifier: ^3.12.3
+        version: 3.12.3
       pinia:
         specifier: ^2.2.0
         version: 2.3.1(typescript@5.9.3)(vue@3.5.38(typescript@5.9.3))
@@ -28,6 +31,9 @@ importers:
       vue-router:
         specifier: ^4.4.0
         version: 4.6.4(vue@3.5.38(typescript@5.9.3))
+      vue3-barcode:
+        specifier: ^1.0.1
+        version: 1.0.1(@vue/compiler-sfc@3.5.38)(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -656,6 +662,12 @@ packages:
   '@types/web-bluetooth@0.0.21':
     resolution: {integrity: sha512-oIQLCGWtcFZy2JW77j9k8nHzAOpqMHLQejDA48XXMWH6tjCQHz5RCFz1bzsmROyL6PUm+LLnUiI4BCn221inxA==}
 
+  '@vitejs/plugin-vue@1.6.0':
+    resolution: {integrity: sha512-n3i8htn8pTg9M+kM3cnEfsPZx/6ngInlTroth6fA1LQTJq5aTVQ8ggaE5pPoAy9vCgHPtcaXMzwpldhqRAkebQ==}
+    engines: {node: '>=12.0.0'}
+    peerDependencies:
+      '@vue/compiler-sfc': ^3.2.6
+
   '@vitejs/plugin-vue@5.2.4':
     resolution: {integrity: sha512-7Yx/SXSOcQq5HiiV3orevHUFn+pmMB4cgbEkDYgnkUWb0WfeQ/wa2yFv6D5ICiCQOVpjA7vYDXrC7AGO8yjDHA==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -1003,6 +1015,9 @@ packages:
   isarray@1.0.0:
     resolution: {integrity: sha512-VLghIWNM6ELQzo7zwmcg0NmTVyWKYjvIeM83yjp0wRDTmUnrM678fQbcKBo6n2CJEF0szoG//ytg+TKla89ALQ==}
 
+  jsbarcode@3.12.3:
+    resolution: {integrity: sha512-CuHU9hC6dPsHF5oVFMo8NW76uQVjH4L22CsP4hW+dNnGywJHC/B0ThA1CTDVLnxKLrrpYdicBLnd2xsgTfRnvg==}
+
   jsonwebtoken@9.0.3:
     resolution: {integrity: sha512-MT/xP0CrubFRNLNKvxJ2BYfy53Zkm++5bX9dtuPbqAeQpTVe0MQTFhao8+Cp//EmJp244xt6Drw/GVEGCUj40g==}
     engines: {node: '>=12', npm: '>=6'}
@@ -1345,6 +1360,9 @@ packages:
     hasBin: true
     peerDependencies:
       typescript: '>=5.0.0'
+
+  vue3-barcode@1.0.1:
+    resolution: {integrity: sha512-i9XU0iyLSLSQsWSbsmGoqiKr3kwflmyqbdmk1euITTna/f4aEbbibRRSv4rTLzriaSTGlXp3+iWxyEhimzNPBQ==}
 
   vue@3.5.38:
     resolution: {integrity: sha512-vAMKHfImQlYSy0C+PBue4s3ERZ2xGKfgZg5GXAsLInq1dyh2H78ILVP5sK0KPFPVW4kv+OGCIvBEondcjpZp7A==}
@@ -1717,6 +1735,10 @@ snapshots:
       '@types/send': 0.17.6
 
   '@types/web-bluetooth@0.0.21': {}
+
+  '@vitejs/plugin-vue@1.6.0(@vue/compiler-sfc@3.5.38)':
+    dependencies:
+      '@vue/compiler-sfc': 3.5.38
 
   '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@22.19.21))(vue@3.5.38(typescript@5.9.3))':
     dependencies:
@@ -2181,6 +2203,8 @@ snapshots:
 
   isarray@1.0.0: {}
 
+  jsbarcode@3.12.3: {}
+
   jsonwebtoken@9.0.3:
     dependencies:
       jws: 4.0.1
@@ -2513,6 +2537,15 @@ snapshots:
       '@volar/typescript': 2.4.15
       '@vue/language-core': 2.2.12(typescript@5.9.3)
       typescript: 5.9.3
+
+  vue3-barcode@1.0.1(@vue/compiler-sfc@3.5.38)(typescript@5.9.3):
+    dependencies:
+      '@vitejs/plugin-vue': 1.6.0(@vue/compiler-sfc@3.5.38)
+      jsbarcode: 3.12.3
+      vue: 3.5.38(typescript@5.9.3)
+    transitivePeerDependencies:
+      - '@vue/compiler-sfc'
+      - typescript
 
   vue@3.5.38(typescript@5.9.3):
     dependencies:

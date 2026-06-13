@@ -1,10 +1,11 @@
 import request from './request'
 
 export async function createSale(data: {
-  items: Array<{ sku_id: number; quantity: number; unit_price: number }>
-  total_amount: number
+  items: Array<{ imei: string; unit_price?: number }>
   actual_amount: number
   customer_name?: string
+  customer_address?: string
+  customer_phone?: string
   remark?: string
   store_id?: number
 }): Promise<any> {

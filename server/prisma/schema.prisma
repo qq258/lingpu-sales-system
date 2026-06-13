@@ -243,13 +243,14 @@ model wh_inventory_log {
 }
 
 model wh_inventory_imei {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   sku_id     Int
   store_id   Int
-  imei       String   @unique
-  status     String   @default("in_stock")
+  imei       String    @unique
+  status     String    @default("in_stock")
   entry_id   Int?
-  created_at DateTime @default(now())
+  sold_at    DateTime?
+  created_at DateTime  @default(now())
 
   sku   pdt_sku   @relation(fields: [sku_id], references: [id])
   store sys_store @relation(fields: [store_id], references: [id])
@@ -292,7 +293,10 @@ model sale_order {
   unit_price    Float
   total_amount  Float?
   actual_amount Float
+  change_amount Float?
   customer_name String?
+  customer_address String?
+  customer_phone  String?
   remark        String?
   operator_id   Int
   status        String   @default("active")
@@ -313,6 +317,7 @@ model sale_order_item {
   sale_order_id Int
   sku_id      Int
   sku_name    String
+  imei        String?
   quantity    Int
   unit_price  Float
   total_price Float

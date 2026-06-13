@@ -22,7 +22,7 @@ router.post('/sales', async (req: Request, res: Response) => {
       return res.status(400).json(r);
     }
 
-    const { items, total_amount, actual_amount, customer_name, remark } = req.body;
+    const { items, actual_amount, customer_name, customer_address, customer_phone, remark } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
       const r: ApiResponse = { code: 400, message: '商品列表不能为空' };
       return res.status(400).json(r);
@@ -39,79 +39,123 @@ router.post('/sales', async (req: Request, res: Response) => {
     }
 
     const orderNo = await generateOrderNo('SA', store.code);
+    let totalAmount = 0;
+
+    // 按 IMEI 逐条校验并收集信息
+    const imeiRecords: Array<{ imei: string; skuId: number; brandName: string; modelName: string; color: string; storage: string; unitPrice: number }> = [];
+    for (const item of items) {
+      const { imei, unit_price } = item;
+      if (!imei) {
+        throw new Error('IMEI不能为空');
+      }
+
+      const record = await prisma.wh_inventory_imei.findUnique({
+        where: { imei },
+        include: {
+          sku: { include: { model: { include: { brand: { select: { name: true } } } } } },
+        },
+      });
+
+      if (!record) {
+        throw new Error(`IMEI ${imei} 不存在`);
+      }
+      if (record.status !== 'in_stock') {
+        throw new Error(`IMEI ${imei} 已售出`);
+      }
+      if (record.store_id !== storeId) {
+        throw new Error(`IMEI ${imei} 不属于当前门店`);
+      }
+
+      const price = unit_price || record.sku?.sale_price || 0;
+      totalAmount += price;
+
+      const brandName = record.sku?.model?.brand?.name || '';
+      const modelName = record.sku?.model?.name || '';
+      const color = record.sku?.color || '';
+      const storage = [record.sku?.ram, record.sku?.rom].filter(Boolean).join('/') || '';
+
+      imeiRecords.push({ imei, skuId: record.sku_id, brandName, modelName, color, storage, unitPrice: price });
+    }
 
     const result = await prisma.$transaction(async (tx) => {
-      const firstItem = items[0];
-      const firstSku = await tx.pdt_sku.findUnique({
-        where: { id: firstItem.sku_id },
-        include: { model: { include: { brand: { select: { name: true } } } } },
-      });
-      const firstSkuName = firstSku ? `${firstSku.model?.brand?.name || ''} ${firstSku.model?.name || ''} ${firstSku.color || ''} ${[firstSku.ram, firstSku.rom].filter(Boolean).join('/') || ''}`.trim() : '';
+      const firstItem = imeiRecords[0];
+      const firstSkuName = `${firstItem.brandName} ${firstItem.modelName} - ${firstItem.color}/${firstItem.storage}`.trim();
 
       const saleOrder = await tx.sale_order.create({
         data: {
           order_no: orderNo,
           store_id: storeId,
-          sku_id: firstItem.sku_id,
+          sku_id: firstItem.skuId,
           sku_name: firstSkuName,
-          quantity: items.reduce((sum: number, i: any) => sum + (i.quantity || 0), 0),
-          unit_price: firstItem.unit_price || 0,
-          total_amount: total_amount || 0,
+          quantity: imeiRecords.length,
+          unit_price: firstItem.unitPrice || 0,
+          total_amount: totalAmount,
           actual_amount,
+          change_amount: Math.max(0, actual_amount - totalAmount),
           customer_name,
+          customer_address,
+          customer_phone,
           remark,
           operator_id: req.user!.userId,
         },
       });
 
-      for (const item of items) {
-        const { sku_id, quantity, unit_price } = item;
-        if (!sku_id || !quantity || unit_price === undefined) {
-          throw new Error('SKU、数量和单价不能为空');
-        }
-
-        const sku = await tx.pdt_sku.findUnique({
-          where: { id: sku_id },
-          include: { model: { include: { brand: { select: { name: true } } } } },
-        });
-        if (!sku) {
-          throw new Error(`SKU(ID=${sku_id})不存在`);
-        }
-
-        const inventory = await tx.wh_inventory.findUnique({
-          where: { sku_id_store_id: { sku_id, store_id: storeId } },
-        });
-
-        if (!inventory || inventory.quantity < quantity) {
-          throw new Error(`"${sku.model?.brand?.name || ''} ${sku.model?.name || ''} ${sku.color || ''}" 库存不足`);
-        }
-
-        await tx.wh_inventory.update({
-          where: { id: inventory.id },
-          data: { quantity: inventory.quantity - quantity },
-        });
-
-        const skuName = `${sku.model?.brand?.name || ''} ${sku.model?.name || ''} ${sku.color || ''} ${[sku.ram, sku.rom].filter(Boolean).join('/') || ''}`.trim();
+      for (const rec of imeiRecords) {
+        const skuName = `${rec.brandName} ${rec.modelName} - ${rec.color}/${rec.storage}`.trim();
 
         await tx.sale_order_item.create({
           data: {
             sale_order_id: saleOrder.id,
-            sku_id,
+            sku_id: rec.skuId,
             sku_name: skuName,
-            quantity,
-            unit_price,
-            total_price: unit_price * quantity,
+            imei: rec.imei,
+            quantity: 1,
+            unit_price: rec.unitPrice,
+            total_price: rec.unitPrice,
           },
         });
 
+        // 标记 IMEI 为已售出
+        await tx.wh_inventory_imei.update({
+          where: { imei: rec.imei },
+          data: { status: 'sold', sold_at: new Date() },
+        });
+      }
+
+      // 按 SKU 分组更新汇总库存
+      const skuGroups: Record<number, number> = {};
+      for (const rec of imeiRecords) {
+        skuGroups[rec.skuId] = (skuGroups[rec.skuId] || 0) + 1;
+      }
+
+      for (const [skuIdStr, count] of Object.entries(skuGroups)) {
+        const skuId = parseInt(skuIdStr);
+
+        const inventory = await tx.wh_inventory.findUnique({
+          where: { sku_id_store_id: { sku_id: skuId, store_id: storeId } },
+        });
+
+        const qtyBefore = inventory?.quantity || 0;
+        const qtyAfter = Math.max(0, qtyBefore - count);
+
+        if (inventory) {
+          await tx.wh_inventory.update({
+            where: { id: inventory.id },
+            data: { quantity: qtyAfter },
+          });
+        }
+
+        const skuRec = imeiRecords.find(r => r.skuId === skuId);
+        const skuName = skuRec ? `${skuRec.brandName} ${skuRec.modelName}`.trim() : '';
+
         await tx.wh_inventory_log.create({
           data: {
-            sku_id,
+            sku_id: skuId,
             store_id: storeId,
             change_type: 'sale_out',
-            qty_before: inventory.quantity,
-            qty_change: -quantity,
-            qty_after: inventory.quantity - quantity,
+            qty_before: qtyBefore,
+            qty_change: -count,
+            qty_after: qtyAfter,
             ref_type: 'sale_order',
             ref_id: saleOrder.id,
             operator_id: req.user!.userId,
@@ -123,10 +167,7 @@ router.post('/sales', async (req: Request, res: Response) => {
       const updatedOrder = await tx.sale_order.update({
         where: { id: saleOrder.id },
         data: {
-          sku_name: (await tx.sale_order_item.findMany({
-            where: { sale_order_id: saleOrder.id },
-            select: { sku_name: true, quantity: true },
-          })).map(i => `${i.sku_name} x${i.quantity}`).join('; '),
+          sku_name: imeiRecords.map(r => `${r.brandName} ${r.modelName} - ${r.color}/${r.storage}`.trim()).join('; '),
         },
       });
 
@@ -215,7 +256,6 @@ router.get('/sales/:id/print-data', async (req: Request, res: Response) => {
       where: { id },
       include: {
         store: { select: { id: true, name: true, code: true, address: true, phone: true } },
-        sku: { include: { model: { include: { brand: { select: { id: true, name: true } } } } } },
         operator: { select: { id: true, real_name: true } },
         items: true,
       },
@@ -224,7 +264,32 @@ router.get('/sales/:id/print-data', async (req: Request, res: Response) => {
       const r: ApiResponse = { code: 404, message: '销售记录不存在' };
       return res.status(404).json(r);
     }
-    const r: ApiResponse = { code: 200, message: 'success', data: sale };
+
+    // 组装打印数据：以 items（sale_order_item）为主，每条 item 包含 IMEI
+    const printData = {
+      order_no: sale.order_no,
+      created_at: sale.created_at,
+      store: (sale as any).store,
+      operator: (sale as any).operator,
+      customer_name: sale.customer_name,
+      customer_address: sale.customer_address,
+      customer_phone: sale.customer_phone,
+      total_amount: sale.total_amount,
+      actual_amount: sale.actual_amount,
+      change_amount: sale.change_amount,
+      remark: sale.remark,
+      items: ((sale as any).items || []).map((item: any) => ({
+        id: item.id,
+        sku_id: item.sku_id,
+        sku_name: item.sku_name,
+        imei: item.imei,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+      })),
+    };
+
+    const r: ApiResponse = { code: 200, message: 'success', data: printData };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };

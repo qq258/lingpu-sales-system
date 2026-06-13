@@ -126,15 +126,9 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="barcode" label="条码" width="130" />
-          <el-table-column prop="quantity" label="数量" width="70" align="center" />
+          <el-table-column label="IMEI" width="150" prop="imei" />
           <el-table-column prop="costPrice" label="单价" width="90" align="right">
             <template #default="{ row }">¥{{ row.costPrice?.toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="小计" width="100" align="right">
-            <template #default="{ row }">
-              <span class="pbm-cell-price">¥{{ (row.quantity * row.costPrice)?.toFixed(2) }}</span>
-            </template>
           </el-table-column>
         </el-table>
       </template>

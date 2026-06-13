@@ -11,6 +11,23 @@ export async function getInventory(params?: {
   return res.data
 }
 
+export async function scanImeiForSale(imei: string, storeId?: number): Promise<any> {
+  const params: any = { imei }
+  if (storeId) params.storeId = storeId
+  const res: any = await request.get('/inventory/scan-imei', { params })
+  return res.data
+}
+
+export async function getInventoryImeiList(params?: {
+  storeId?: number
+  keyword?: string
+  page?: number
+  pageSize?: number
+}): Promise<{ list: any[]; total: number }> {
+  const res: any = await request.get('/inventory/imei-list', { params })
+  return res.data
+}
+
 export async function getInventoryLogs(params?: {
   storeId?: number
   skuId?: number
