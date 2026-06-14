@@ -33,11 +33,20 @@
             <span class="item-name">{{ item.modelName }}</span>
             <span class="item-price">¥{{ item.price.toFixed(2) }}</span>
           </div>
-          <div class="item-barcode-wrap">
-            <div class="item-imei-label">IMEI: {{ item.imei || "123123" }}</div>
-            <div v-if="item.imei2" class="item-extra-label">IMEI2: {{ item.imei2 }}</div>
-            <div v-if="item.snCode" class="item-extra-label">S/N: {{ item.snCode }}</div>
+          <div class="item-barcode-block">
+            <div class="item-code-label">IMEI1</div>
+            <div class="item-code-value">{{ item.imei || "123123" }}</div>
             <BarcodeCell v-if="item.imei" :value="item.imei" />
+          </div>
+          <div v-if="item.imei2" class="item-barcode-block">
+            <div class="item-code-label">IMEI2</div>
+            <div class="item-code-value">{{ item.imei2 }}</div>
+            <BarcodeCell :value="item.imei2" />
+          </div>
+          <div v-if="item.snCode" class="item-barcode-block">
+            <div class="item-code-label">S/N</div>
+            <div class="item-code-value">{{ item.snCode }}</div>
+            <BarcodeCell :value="item.snCode" />
           </div>
         </div>
       </div>
@@ -113,7 +122,7 @@ const BarcodeCell = {
         JsBarcode(el, props.value, {
           format: 'CODE128',
           width: 2,
-          height: 50,
+          height: 30,
           displayValue: false,
           margin: 0,
         })
@@ -157,12 +166,11 @@ watch(visible, async (val) => {
   await nextTick()
   await nextTick()
   await nextTick()
-  const svgs = receiptRef.value?.querySelectorAll('.item-barcode-wrap svg.barcode-svg') ?? []
+  const svgs = receiptRef.value?.querySelectorAll('.item-barcode-block svg.barcode-svg') ?? []
   console.log(`[PrintReceipt] 预览条形码检查: 找到 ${svgs.length} 个 SVG`)
   svgs.forEach((svg, idx) => {
-    const imei = props.data?.items?.[idx]?.imei
     const bars = svg.querySelectorAll('rect').length
-    console.log(`[PrintReceipt] 预览条形码 [${idx}] IMEI=${imei}`, {
+    console.log(`[PrintReceipt] 预览条形码 [${idx}]`, {
       barCount: bars,
       svgWidth: svg.getAttribute('width'),
       svgHeight: svg.getAttribute('height'),
@@ -183,7 +191,7 @@ function generateBarcodeSvg(imei: string): string {
     JsBarcode(svg, imei, {
       format: 'CODE128',
       width: 2,
-      height: 50,
+      height: 30,
       displayValue: false,
       margin: 0,
     })
@@ -213,28 +221,40 @@ function handlePrint() {
   }
 
   // 预生成所有条形码 SVG
-  const barcodeSvgs = (props.data?.items || []).map((item) => generateBarcodeSvg(item.imei))
-  const validSvgCount = barcodeSvgs.filter(s => s.length > 0).length
+  const barcodeData = (props.data?.items || []).map((item) => ({
+    imei: generateBarcodeSvg(item.imei),
+    imei2: item.imei2 ? generateBarcodeSvg(item.imei2) : '',
+    snCode: item.snCode ? generateBarcodeSvg(item.snCode) : '',
+  }))
   console.log('[PrintReceipt] 条形码 SVG 预生成完毕', {
-    total: barcodeSvgs.length,
-    valid: validSvgCount,
-    empty: barcodeSvgs.length - validSvgCount,
+    total: barcodeData.length,
   })
 
-  const itemsHtml = (props.data?.items || []).map((item, idx) => `
-    <div class="receipt-item">
-      <div class="item-header">
-        <span class="item-name">${item.modelName}</span>
-        <span class="item-price">¥${item.price.toFixed(2)}</span>
+  function barcodeBlock(label: string, value: string, svg: string) {
+    return `
+      <div class="item-barcode-block">
+        <div class="item-code-label">${label}</div>
+        <div class="item-code-value">${value}</div>
+        ${svg || '<!-- 条形码生成失败 -->'}
       </div>
-      <div class="item-barcode-wrap">
-        <div class="item-imei-label">IMEI: ${item.imei}</div>
-        ${item.imei2 ? `<div class="item-extra-label">IMEI2: ${item.imei2}</div>` : ''}
-        ${item.snCode ? `<div class="item-extra-label">S/N: ${item.snCode}</div>` : ''}
-        ${barcodeSvgs[idx] || '<!-- 条形码生成失败 -->'}
+    `
+  }
+
+  const itemsHtml = (props.data?.items || []).map((item, idx) => {
+    const bc = barcodeData[idx]
+    let blocks = barcodeBlock('IMEI1', item.imei, bc.imei)
+    if (item.imei2) blocks += barcodeBlock('IMEI2', item.imei2, bc.imei2)
+    if (item.snCode) blocks += barcodeBlock('S/N', item.snCode, bc.snCode)
+    return `
+      <div class="receipt-item">
+        <div class="item-header">
+          <span class="item-name">${item.modelName}</span>
+          <span class="item-price">¥${item.price.toFixed(2)}</span>
+        </div>
+        ${blocks}
       </div>
-    </div>
-  `).join('')
+    `
+  }).join('')
 
   const customerHtml = (props.data?.customerName || props.data?.customerAddress || props.data?.customerPhone)
     ? `
@@ -269,7 +289,12 @@ function handlePrint() {
         .item-barcode-wrap { text-align: center; margin: 4px 0; width: 100%; }
         .item-barcode-wrap svg { width: 100%; max-width: 100%; height: auto; }
         .item-imei-label { text-align: center; font-size: 11px; font-weight: bold; color: #333; margin-bottom: 2px; letter-spacing: 1px; }
-.item-extra-label { text-align: center; font-size: 10px; color: #555; margin-bottom: 1px; letter-spacing: 0.5px; }
+        .item-extra-label { text-align: center; font-size: 10px; color: #555; margin-bottom: 1px; letter-spacing: 0.5px; }
+        .item-barcode-block { text-align: center; margin: 6px 0; padding: 4px 0; border-top: 1px dotted #ddd; }
+        .item-barcode-block:first-child { border-top: none; }
+        .item-code-label { text-align: center; font-size: 10px; font-weight: bold; color: #666; margin-bottom: 1px; letter-spacing: 0.5px; }
+        .item-code-value { text-align: center; font-size: 11px; font-weight: bold; color: #333; margin-bottom: 2px; letter-spacing: 1px; }
+        .item-barcode-block svg { width: 100%; max-width: 100%; height: auto; }
         .item-imei { text-align: center; font-size: 10px; color: #555; letter-spacing: 1px; }
         .receipt-total .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; font-size: 12px; }
         .receipt-remark { font-size: 11px; color: #555; }
@@ -420,6 +445,36 @@ defineExpose({ open })
   color: #555;
   margin-bottom: 1px;
   letter-spacing: 0.5px;
+}
+.item-barcode-block {
+  text-align: center;
+  margin: 6px 0;
+  padding: 6px 0;
+  border-top: 1px dotted #dcdfe6;
+}
+.item-barcode-block:first-child {
+  border-top: none;
+}
+.item-code-label {
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: #666;
+  margin-bottom: 1px;
+  letter-spacing: 0.5px;
+}
+.item-code-value {
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 2px;
+  letter-spacing: 1px;
+}
+.item-barcode-block svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
 }
 .item-barcode {
   max-width: 100%;

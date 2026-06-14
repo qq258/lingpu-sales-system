@@ -13,9 +13,10 @@ function getStoreId(req: Request): number | null {
   return (req as any).effectiveStoreId ?? null;
 }
 
-router.get('/stats/dashboard', async (req: Request, res: Response) => {
+router.get('/dashboard', async (req: Request, res: Response) => {
   try {
     const storeId = getStoreId(req);
+    const isSuperAdmin = req.user?.role === 'super_admin';
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -25,11 +26,10 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const whereStore: any = {};
     if (storeId) whereStore.store_id = storeId;
 
-    const [todaySales, todayOrders, recentSales, topModels, lowStock] = await Promise.all([
+    const [todaySales, todayOrders, recentSales, topModels, lowStock, recentOrders] = await Promise.all([
       prisma.sale_order.aggregate({
         where: { ...whereStore, created_at: { gte: todayStart, lte: todayEnd } },
         _sum: { actual_amount: true },
-        _count: true,
       }),
       prisma.sale_order.count({
         where: { ...whereStore, created_at: { gte: todayStart, lte: todayEnd } },
@@ -46,33 +46,79 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
         orderBy: { _sum: { quantity: 'desc' } },
         take: 10,
       }),
-      prisma.wh_inventory.findMany({
+      prisma.wh_inventory.count({
         where: { ...whereStore, quantity: { lte: 10 } },
+      }),
+      prisma.sale_order.findMany({
+        where: whereStore,
+        orderBy: { created_at: 'desc' },
         take: 5,
-        orderBy: { quantity: 'asc' },
-        include: { model: { include: { brand: { select: { id: true, name: true } } } } },
+        select: { order_no: true, actual_amount: true, created_at: true },
       }),
     ]);
 
-    const topModelDetails = await Promise.all(
+    const topProductDetails = await Promise.all(
       topModels.map(async (item) => {
         const model = await prisma.pdt_model.findUnique({
           where: { id: item.model_id },
-          include: { brand: { select: { id: true, name: true } } },
+          select: { id: true, name: true },
         });
-        return { model, totalQuantity: item._sum.quantity, totalAmount: item._sum.actual_amount };
+        return {
+          modelId: item.model_id,
+          modelName: model?.name || '未知',
+          quantity: item._sum.quantity || 0,
+          amount: item._sum.actual_amount || 0,
+        };
       }),
     );
+
+    const weeklySales = recentSales.map((s) => ({
+      date: s.created_at.toISOString().slice(0, 10),
+      amount: s.actual_amount,
+    }));
+
+    // 按日期聚合（同一天可能有多个订单）
+    const aggregatedWeekly: Record<string, number> = {};
+    for (const item of weeklySales) {
+      aggregatedWeekly[item.date] = (aggregatedWeekly[item.date] || 0) + item.amount;
+    }
+    const finalWeeklySales = Object.entries(aggregatedWeekly)
+      .map(([date, amount]) => ({ date, amount }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // 门店销售对比（仅超级管理员）
+    let storeCompare: any[] | undefined;
+    if (isSuperAdmin) {
+      const storeSales = await prisma.sale_order.groupBy({
+        by: ['store_id'],
+        where: { created_at: { gte: todayStart, lte: todayEnd } },
+        _sum: { actual_amount: true },
+        _count: true,
+      });
+      const stores = await prisma.sys_store.findMany({ select: { id: true, name: true } });
+      const storeMap = new Map(stores.map((s) => [s.id, s.name]));
+      storeCompare = storeSales.map((s) => ({
+        storeName: storeMap.get(s.store_id) || '未知',
+        sales: s._sum.actual_amount || 0,
+        orders: s._count,
+      }));
+    }
 
     const r: ApiResponse = {
       code: 200,
       message: 'success',
       data: {
-        todaySalesAmount: todaySales._sum.actual_amount || 0,
-        todayOrderCount: todayOrders,
-        recent7DaysTrend: recentSales,
-        topModelSales: topModelDetails,
-        lowStockItems: lowStock,
+        todaySales: todaySales._sum.actual_amount || 0,
+        todayOrders,
+        lowStockCount: lowStock,
+        weeklySales: finalWeeklySales,
+        recentOrders: recentOrders.map((o) => ({
+          orderNo: o.order_no,
+          totalAmount: o.actual_amount,
+          createdAt: o.created_at.toISOString(),
+        })),
+        topProducts: topProductDetails,
+        storeCompare,
       },
     };
     return res.json(r);
@@ -139,7 +185,7 @@ router.get('/stats/sales', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/stats/transfers', async (req: Request, res: Response) => {
+router.get('/transfers', async (req: Request, res: Response) => {
   try {
     const storeId = getStoreId(req);
     const { start_date, end_date } = req.query;

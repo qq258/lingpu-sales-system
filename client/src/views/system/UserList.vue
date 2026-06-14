@@ -23,13 +23,16 @@
             </template>
           </el-table-column>
           <el-table-column prop="storeName" label="所属门店" />
-          <el-table-column label="操作" width="160" fixed="right">
+          <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <button class="pbm-icon-btn pbm-icon-btn--sm" title="编辑" @click="openDialog(row)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </button>
               <button class="pbm-icon-btn pbm-icon-btn--sm" title="重置密码" @click="handleResetPassword(row)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.5"/></svg>
+              </button>
+              <button v-if="userStore.userInfo?.role === 'super_admin'" class="pbm-icon-btn pbm-icon-btn--sm pbm-icon-btn--danger" title="删除" @click="handleDelete(row)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
               </button>
             </template>
           </el-table-column>
@@ -75,7 +78,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { register } from '@/api/auth'
-import axios from 'axios'
+import request from '@/api/request'
 
 const userStore = useUserStore()
 
@@ -114,7 +117,7 @@ function roleLabel(role: string) {
 async function loadUsers() {
   loading.value = true
   try {
-    const res = await axios.get('/api/v1/auth/users')
+    const res = await request.get('/auth/users')
     users.value = res.data?.list || res.data || []
   } catch {
     users.value = []
@@ -149,7 +152,7 @@ async function handleSubmit() {
   submitLoading.value = true
   try {
     if (isEdit.value && editId.value) {
-      await axios.put(`/api/v1/auth/users/${editId.value}`, form.value)
+      await request.put(`/auth/users/${editId.value}`, form.value)
       ElMessage.success('更新成功')
     } else {
       await register({
@@ -176,10 +179,25 @@ async function handleResetPassword(row: any) {
       inputPattern: /^.{6,}$/,
       inputErrorMessage: '密码至少6位',
     })
-    await axios.put(`/api/v1/auth/users/${row.id}/reset-password`, { password: value })
+    await request.put(`/auth/users/${row.id}/reset-password`, { password: value })
     ElMessage.success('密码已重置')
   } catch {
     // cancelled
+  }
+}
+
+async function handleDelete(row: any) {
+  try {
+    await ElMessageBox.confirm(`确定要删除用户「${row.username}」吗？此操作不可撤销。`, '确认删除', {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await request.delete(`/auth/users/${row.id}`)
+    ElMessage.success('删除成功')
+    await loadUsers()
+  } catch {
+    // cancelled or error
   }
 }
 

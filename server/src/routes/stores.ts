@@ -18,8 +18,9 @@ function checkSuperAdmin(req: Request, res: Response): boolean {
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    if (!checkSuperAdmin(req, res)) return;
+    const isSuperAdmin = req.user!.role === UserRole.SUPER_ADMIN;
     const stores = await prisma.sys_store.findMany({
+      where: isSuperAdmin ? undefined : { id: req.user!.storeId ?? undefined },
       orderBy: { id: 'asc' },
     });
     const r: ApiResponse = { code: 200, message: 'success', data: stores };
@@ -32,8 +33,14 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    if (!checkSuperAdmin(req, res)) return;
     const id = parseInt(req.params.id);
+    const isSuperAdmin = req.user!.role === UserRole.SUPER_ADMIN;
+
+    if (!isSuperAdmin && req.user!.storeId !== id) {
+      const r: ApiResponse = { code: 403, message: '无权查看其他门店信息' };
+      return res.status(403).json(r);
+    }
+
     const store = await prisma.sys_store.findUnique({ where: { id } });
     if (!store) {
       const r: ApiResponse = { code: 404, message: '门店不存在' };

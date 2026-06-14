@@ -48,18 +48,18 @@
           </template>
           <el-menu-item index="/inventory">库存查询</el-menu-item>
           <el-menu-item index="/inventory/initial" v-if="userStore.isSuperAdmin || userStore.userInfo?.role === 'store_admin'">期初库存</el-menu-item>
-          <el-menu-item index="/inventory/check">库存盘点</el-menu-item>
+          <!-- <el-menu-item index="/inventory/check">库存盘点</el-menu-item> -->
           <el-menu-item index="/inventory/logs">库存流水</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="transfer">
+        <!-- <el-sub-menu index="transfer">
           <template #title>
             <el-icon><RefreshRight /></el-icon>
             <span>调货管理</span>
           </template>
           <el-menu-item index="/transfer/new">发起调货</el-menu-item>
           <el-menu-item index="/transfer/list">调货记录</el-menu-item>
-        </el-sub-menu>
+        </el-sub-menu> -->
 
         <el-sub-menu index="sales">
           <template #title>
