@@ -94,7 +94,7 @@ router.post('/initial', async (req: Request, res: Response) => {
       return inventory;
     });
 
-    const r: ApiResponse = { code: 200, message: '录入成功', data: inventory };
+    const r: ApiResponse = { code: 200, message: '录入成功', data: result };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };

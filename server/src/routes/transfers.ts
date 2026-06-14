@@ -31,7 +31,7 @@ router.post('/transfers', async (req: Request, res: Response) => {
     const transferNo = await generateOrderNo('TF', store!.code);
 
     // Create one transfer record per item
-    const createdTransfers = [];
+    const createdTransfers: any[] = [];
     for (const item of items) {
       const { model_id, quantity } = item;
       const transfer = await prisma.wh_transfer.create({

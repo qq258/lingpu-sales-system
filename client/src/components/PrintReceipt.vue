@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="小票预览" width="380px" top="5vh" destroy-on-close>
+  <el-dialog v-model="visible" title="小票预览" width="420px" top="5vh" destroy-on-close>
     <div class="receipt" ref="receiptRef">
       <!-- 店铺信息 -->
       <div class="receipt-header">
@@ -34,10 +34,9 @@
             <span class="item-price">¥{{ item.price.toFixed(2) }}</span>
           </div>
           <div class="item-barcode-wrap">
-            <div>IMEI: {{ item.imei || "123123" }}</div>
+            <div class="item-imei-label">IMEI: {{ item.imei || "123123" }}</div>
             <BarcodeCell v-if="item.imei" :value="item.imei" />
           </div>
-          <div class="item-imei">{{ item.imei }}</div>
         </div>
       </div>
 
@@ -111,10 +110,10 @@ const BarcodeCell = {
       try {
         JsBarcode(el, props.value, {
           format: 'CODE128',
-          width: 1.5,
-          height: 40,
+          width: 2,
+          height: 50,
           displayValue: false,
-          margin: 4,
+          margin: 0,
         })
         const barCount = el.querySelectorAll('rect').length
         console.log(`[BarcodeCell] 渲染成功 IMEI=${props.value}`, { barCount })
@@ -181,10 +180,10 @@ function generateBarcodeSvg(imei: string): string {
   try {
     JsBarcode(svg, imei, {
       format: 'CODE128',
-      width: 1.5,
-      height: 40,
+      width: 2,
+      height: 50,
       displayValue: false,
-      margin: 4,
+      margin: 0,
     })
     const barCount = svg.querySelectorAll('rect').length
     console.log(`[PrintReceipt] generateBarcodeSvg IMEI=${imei}`, {
@@ -227,9 +226,9 @@ function handlePrint() {
         <span class="item-price">¥${item.price.toFixed(2)}</span>
       </div>
       <div class="item-barcode-wrap">
+        <div class="item-imei-label">IMEI: ${item.imei}</div>
         ${barcodeSvgs[idx] || '<!-- 条形码生成失败 -->'}
       </div>
-      <div class="item-imei">${item.imei}</div>
     </div>
   `).join('')
 
@@ -263,8 +262,9 @@ function handlePrint() {
         .item-header { display: flex; justify-content: space-between; margin-bottom: 2px; }
         .item-name { font-size: 11px; font-weight: bold; }
         .item-price { font-size: 11px; font-weight: bold; }
-        .item-barcode-wrap { text-align: center; margin: 2px 0; }
-        .item-barcode { max-width: 100%; }
+        .item-barcode-wrap { text-align: center; margin: 4px 0; width: 100%; }
+        .item-barcode-wrap svg { width: 100%; max-width: 100%; height: auto; }
+        .item-imei-label { text-align: center; font-size: 11px; font-weight: bold; color: #333; margin-bottom: 2px; letter-spacing: 1px; }
         .item-imei { text-align: center; font-size: 10px; color: #555; letter-spacing: 1px; }
         .receipt-total .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; font-size: 12px; }
         .receipt-remark { font-size: 11px; color: #555; }
@@ -393,7 +393,21 @@ defineExpose({ open })
 }
 .item-barcode-wrap {
   text-align: center;
-  margin: 2px 0;
+  margin: 4px 0;
+  width: 100%;
+}
+.item-barcode-wrap svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+.item-imei-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 2px;
+  letter-spacing: 1px;
 }
 .item-barcode {
   max-width: 100%;

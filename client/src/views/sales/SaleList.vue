@@ -109,7 +109,7 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getSales, getSale, getPrintData, deleteSale } from '@/api/sales'
+import { getSales, getSale, getSalePrintData, deleteSale } from '@/api/sales'
 import PrintReceipt from '@/components/PrintReceipt.vue'
 
 const userStore = useUserStore()
@@ -183,7 +183,7 @@ async function showDetail(row: any) {
 
 async function reprint(row: any) {
   try {
-    const d = await getPrintData(row.id)
+    const d = await getSalePrintData(row.id)
     console.log("reprint", d)
     printData.value = {
       storeName: d.store?.name || '',
@@ -210,7 +210,8 @@ async function reprint(row: any) {
     await nextTick()
     printReceiptRef.value?.open()
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '获取打印数据失败')
+    console.error('补打失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '获取打印数据失败')
   }
 }
 
