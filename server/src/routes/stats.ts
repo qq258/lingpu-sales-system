@@ -128,7 +128,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/stats/sales', async (req: Request, res: Response) => {
+router.get('/sales', async (req: Request, res: Response) => {
   try {
     const storeId = getStoreId(req);
     const { start_date, end_date, group_by = 'day' } = req.query;
@@ -178,6 +178,52 @@ router.get('/stats/sales', async (req: Request, res: Response) => {
       .sort((a, b) => a.date.localeCompare(b.date));
 
     const r: ApiResponse = { code: 200, message: 'success', data: result };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+router.get('/top-products', async (req: Request, res: Response) => {
+  try {
+    const storeId = getStoreId(req);
+    const { start_date, end_date, limit = '10' } = req.query;
+
+    const saleWhere: any = { status: 'active' };
+    if (storeId) saleWhere.store_id = storeId;
+    if (start_date || end_date) {
+      saleWhere.created_at = {};
+      if (start_date) saleWhere.created_at.gte = new Date(start_date as string);
+      if (end_date) saleWhere.created_at.lte = new Date(end_date as string + 'T23:59:59.999Z');
+    }
+
+    const topItems = await prisma.sale_order_item.groupBy({
+      by: ['model_id'],
+      where: {
+        sale_order: saleWhere,
+      },
+      _sum: { quantity: true, total_price: true },
+      _count: true,
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: parseInt(limit as string) || 10,
+    });
+
+    const modelIds = topItems.map(i => i.model_id);
+    const models = await prisma.pdt_model.findMany({
+      where: { id: { in: modelIds } },
+      select: { id: true, name: true },
+    });
+    const modelMap = new Map(models.map(m => [m.id, m.name]));
+
+    const data = topItems.map(item => ({
+      modelId: item.model_id,
+      modelName: modelMap.get(item.model_id) || '未知',
+      quantity: item._sum.quantity || 0,
+      amount: item._sum.total_price || 0,
+    }));
+
+    const r: ApiResponse = { code: 200, message: 'success', data };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };

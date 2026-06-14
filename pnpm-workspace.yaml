@@ -1,6 +1,7 @@
 packages:
   - 'client'
   - 'server'
+  - 'portal'
 allowBuilds:
   '@prisma/client': false
   '@prisma/engines': false
