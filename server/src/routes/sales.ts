@@ -43,6 +43,8 @@ router.post('/sales', async (req: Request, res: Response) => {
     const result = await prisma.$transaction(async (tx) => {
       interface ImeiRecord {
         imei: string;
+        imei2: string | null;
+        sn_code: string | null;
         modelId: number;
         brandName: string;
         modelName: string;
@@ -88,7 +90,7 @@ router.post('/sales', async (req: Request, res: Response) => {
         const color = record.model?.color || '';
         const storage = [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '';
 
-        imeiRecords.push({ imei, modelId: record.model_id, brandName, modelName, color, storage, unitPrice: price });
+        imeiRecords.push({ imei, imei2: record.imei2, sn_code: record.sn_code, modelId: record.model_id, brandName, modelName, color, storage, unitPrice: price });
       }
 
       const firstItem = imeiRecords[0];
@@ -122,6 +124,8 @@ router.post('/sales', async (req: Request, res: Response) => {
             model_id: rec.modelId,
             model_name: modelNameStr,
             imei: rec.imei,
+            imei2: rec.imei2,
+            sn_code: rec.sn_code,
             quantity: 1,
             unit_price: rec.unitPrice,
             total_price: rec.unitPrice,
@@ -294,6 +298,8 @@ router.get('/sales/:id/print-data', async (req: Request, res: Response) => {
         model_id: item.model_id,
         model_name: item.model_name,
         imei: item.imei,
+        imei2: item.imei2,
+        sn_code: item.sn_code,
         quantity: item.quantity,
         unit_price: item.unit_price,
         total_price: item.total_price,

@@ -35,6 +35,8 @@
           </div>
           <div class="item-barcode-wrap">
             <div class="item-imei-label">IMEI: {{ item.imei || "123123" }}</div>
+            <div v-if="item.imei2" class="item-extra-label">IMEI2: {{ item.imei2 }}</div>
+            <div v-if="item.snCode" class="item-extra-label">S/N: {{ item.snCode }}</div>
             <BarcodeCell v-if="item.imei" :value="item.imei" />
           </div>
         </div>
@@ -85,7 +87,7 @@ const props = defineProps<{
     paidAmount: number
     changeAmount?: number
     remark?: string
-    items: Array<{ modelId: number; modelName: string; imei: string; quantity: number; price: number }>
+    items: Array<{ modelId: number; modelName: string; imei: string; imei2?: string; snCode?: string; quantity: number; price: number }>
   } | null
   storeName?: string
   storePhone?: string
@@ -227,6 +229,8 @@ function handlePrint() {
       </div>
       <div class="item-barcode-wrap">
         <div class="item-imei-label">IMEI: ${item.imei}</div>
+        ${item.imei2 ? `<div class="item-extra-label">IMEI2: ${item.imei2}</div>` : ''}
+        ${item.snCode ? `<div class="item-extra-label">S/N: ${item.snCode}</div>` : ''}
         ${barcodeSvgs[idx] || '<!-- 条形码生成失败 -->'}
       </div>
     </div>
@@ -265,6 +269,7 @@ function handlePrint() {
         .item-barcode-wrap { text-align: center; margin: 4px 0; width: 100%; }
         .item-barcode-wrap svg { width: 100%; max-width: 100%; height: auto; }
         .item-imei-label { text-align: center; font-size: 11px; font-weight: bold; color: #333; margin-bottom: 2px; letter-spacing: 1px; }
+.item-extra-label { text-align: center; font-size: 10px; color: #555; margin-bottom: 1px; letter-spacing: 0.5px; }
         .item-imei { text-align: center; font-size: 10px; color: #555; letter-spacing: 1px; }
         .receipt-total .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; font-size: 12px; }
         .receipt-remark { font-size: 11px; color: #555; }
@@ -408,6 +413,13 @@ defineExpose({ open })
   color: #333;
   margin-bottom: 2px;
   letter-spacing: 1px;
+}
+.item-extra-label {
+  text-align: center;
+  font-size: 10px;
+  color: #555;
+  margin-bottom: 1px;
+  letter-spacing: 0.5px;
 }
 .item-barcode {
   max-width: 100%;

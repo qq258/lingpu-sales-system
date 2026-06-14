@@ -103,19 +103,23 @@ export async function createPurchaseEntry(data: {
   return res.data
 }
 
-export async function addPurchaseItem(entryId: number, data: { modelId: number; imei: string; unitPrice: number }): Promise<any> {
+export async function addPurchaseItem(entryId: number, data: { modelId: number; imei: string; imei2?: string; snCode?: string; unitPrice: number }): Promise<any> {
   const res: any = await request.post(`/purchase/purchase-entries/${entryId}/add-item`, {
     model_id: data.modelId,
     imei: data.imei,
+    imei2: data.imei2 || null,
+    sn_code: data.snCode || null,
     unit_price: data.unitPrice,
   })
   return res.data
 }
 
-export async function batchAddPurchaseImei(entryId: number, data: { modelId: number; imeiList: string[]; unitPrice: number }): Promise<any> {
+export async function batchAddPurchaseImei(entryId: number, data: { modelId: number; imeiList: string[]; imei2List?: string[]; snCodeList?: string[]; unitPrice: number }): Promise<any> {
   const res: any = await request.post(`/purchase/purchase-entries/${entryId}/imei/batch`, {
     model_id: data.modelId,
     imei_list: data.imeiList,
+    imei2_list: data.imei2List || [],
+    sn_code_list: data.snCodeList || [],
     unit_price: data.unitPrice,
   })
   return res.data
@@ -135,7 +139,7 @@ export async function quickConfirmPurchaseEntry(data: {
   supplierId?: number | null
   remark?: string
   storeId?: number
-  items: Array<{ modelId: number; imei: string; unitPrice: number }>
+  items: Array<{ modelId: number; imei: string; imei2?: string; snCode?: string; unitPrice: number }>
 }): Promise<any> {
   const res: any = await request.post('/purchase/purchase-entries/quick-confirm', {
     supplier_id: data.supplierId,
@@ -144,6 +148,8 @@ export async function quickConfirmPurchaseEntry(data: {
     items: data.items.map(i => ({
       model_id: i.modelId,
       imei: i.imei,
+      imei2: i.imei2 || null,
+      sn_code: i.snCode || null,
       unit_price: i.unitPrice,
     })),
   })

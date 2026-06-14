@@ -39,6 +39,12 @@
               </template>
             </el-table-column>
             <el-table-column label="IMEI" width="170" prop="imei" />
+            <el-table-column label="IMEI2" width="150">
+              <template #default="{ row }">{{ row.imei2 || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="S/N" width="130">
+              <template #default="{ row }">{{ row.sn_code || '-' }}</template>
+            </el-table-column>
             <el-table-column prop="storeName" label="门店" width="120" />
             <el-table-column label="是否售出" width="100" align="center">
               <template #default="{ row }">

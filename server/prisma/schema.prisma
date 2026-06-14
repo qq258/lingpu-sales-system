@@ -154,6 +154,8 @@ model pch_purchase_item {
   entry_id   Int
   model_id   Int
   imei       String
+  imei2      String?
+  sn_code    String?
   unit_price Float
   subtotal   Float?
 
@@ -211,6 +213,8 @@ model wh_inventory_imei {
   model_id   Int
   store_id   Int
   imei       String    @unique
+  imei2      String?
+  sn_code    String?
   status     String    @default("in_stock")
   entry_id   Int?
   sold_at    DateTime?
@@ -218,6 +222,8 @@ model wh_inventory_imei {
 
   model pdt_model @relation(fields: [model_id], references: [id])
   store sys_store @relation(fields: [store_id], references: [id])
+
+  @@index([sn_code])
 }
 
 model wh_inventory_check {
@@ -282,6 +288,8 @@ model sale_order_item {
   model_id    Int
   model_name  String
   imei        String?
+  imei2       String?
+  sn_code     String?
   quantity    Int
   unit_price  Float
   total_price Float

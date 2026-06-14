@@ -238,7 +238,7 @@ router.delete('/purchase-entries/:id', async (req: Request, res: Response) => {
 router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response) => {
   try {
     const entryId = parseInt(req.params.id);
-    const { model_id, imei, unit_price } = req.body;
+    const { model_id, imei, imei2, sn_code, unit_price } = req.body;
 
     if (!model_id || !imei) {
       const r: ApiResponse = { code: 400, message: '型号和IMEI不能为空' };
@@ -267,6 +267,8 @@ router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response
           entry_id: entryId,
           model_id,
           imei,
+          imei2: imei2 || null,
+          sn_code: sn_code || null,
           unit_price: unit_price || 0,
           subtotal: unit_price || 0,
         },
@@ -296,7 +298,7 @@ router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response
 router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Response) => {
   try {
     const entryId = parseInt(req.params.id);
-    const { model_id, imei_list, unit_price } = req.body;
+    const { model_id, imei_list, imei2_list, sn_code_list, unit_price } = req.body;
 
     if (!model_id || !imei_list || !Array.isArray(imei_list) || imei_list.length === 0) {
       const r: ApiResponse = { code: 400, message: '型号和IMEI列表不能为空' };
@@ -317,7 +319,11 @@ router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Respon
       const successItems: any[] = [];
       const failedItems: any[] = [];
 
-      for (const imei of imei_list) {
+      for (let i = 0; i < imei_list.length; i++) {
+        const imei = imei_list[i];
+        const imei2 = imei2_list?.[i] || null;
+        const sn_code = sn_code_list?.[i] || null;
+
         const existing = await tx.wh_inventory_imei.findUnique({ where: { imei } });
         if (existing) {
           failedItems.push({ imei, reason: 'IMEI 已存在' });
@@ -328,6 +334,8 @@ router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Respon
             entry_id: entryId,
             model_id,
             imei,
+            imei2,
+            sn_code,
             unit_price: unit_price || 0,
             subtotal: unit_price || 0,
           },
@@ -426,7 +434,7 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
       let totalAmount = 0;
 
       for (const item of items) {
-        const { model_id, imei, unit_price } = item;
+        const { model_id, imei, imei2, sn_code, unit_price } = item;
         if (!model_id || !imei) {
           throw new Error('型号和IMEI不能为空');
         }
@@ -444,6 +452,8 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
             entry_id: entry.id,
             model_id,
             imei,
+            imei2: imei2 || null,
+            sn_code: sn_code || null,
             unit_price: unit_price || 0,
             subtotal,
           },
@@ -454,6 +464,8 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
             model_id,
             store_id: storeId,
             imei,
+            imei2: imei2 || null,
+            sn_code: sn_code || null,
             status: 'in_stock',
             entry_id: entry.id,
           },
@@ -561,6 +573,8 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
             model_id: item.model_id,
             store_id: entry.store_id,
             imei: item.imei,
+            imei2: item.imei2 || null,
+            sn_code: item.sn_code || null,
             status: 'in_stock',
             entry_id: id,
           },

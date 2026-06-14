@@ -80,12 +80,21 @@
       </el-descriptions>
       <div class="pbm-detail-table">
         <el-table :data="detailData?.items || []" border stripe size="small" element-loading-background="rgba(245,240,235,0.8)">
-          <el-table-column label="商品" min-width="180">
+          <el-table-column label="商品" min-width="160">
             <template #default="{ row }">
               {{ row.modelName }}
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="70" align="center" />
+          <el-table-column label="IMEI" width="140">
+            <template #default="{ row }">{{ row.imei || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="IMEI2" width="130">
+            <template #default="{ row }">{{ row.imei2 || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="S/N" width="120">
+            <template #default="{ row }">{{ row.snCode || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="quantity" label="数量" width="60" align="center" />
           <el-table-column label="单价" width="90" align="right">
             <template #default="{ row }">¥{{ (row.price || 0).toFixed(2) }}</template>
           </el-table-column>
@@ -170,6 +179,9 @@ async function showDetail(row: any) {
       items: (d.items || []).map((item: any) => ({
         modelId: item.model_id,
         modelName: item.model_name,
+        imei: item.imei,
+        imei2: item.imei2,
+        snCode: item.sn_code,
         quantity: item.quantity,
         price: item.unit_price || 0,
         totalPrice: item.total_price || item.unit_price * item.quantity || 0,
@@ -203,6 +215,8 @@ async function reprint(row: any) {
         modelId: item.model_id,
         modelName: item.model_name,
         imei: item.imei || '',
+        imei2: item.imei2,
+        snCode: item.sn_code,
         quantity: item.quantity,
         price: item.unit_price || 0,
       })),

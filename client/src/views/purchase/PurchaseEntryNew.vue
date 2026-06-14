@@ -72,6 +72,14 @@
               />
             </div>
           </div>
+          <div class="pbm-field pbm-field-optional">
+            <label>IMEI2 <span class="pbm-optional-tag">可选</span></label>
+            <input v-model="singleImei2" class="pbm-scan-input pbm-slim-input" placeholder="双卡IMEI2" @keyup.enter="handleSingleAdd" />
+          </div>
+          <div class="pbm-field pbm-field-optional">
+            <label>S/N码 <span class="pbm-optional-tag">可选</span></label>
+            <input v-model="singleSnCode" class="pbm-scan-input pbm-slim-input" placeholder="序列号SN" @keyup.enter="handleSingleAdd" />
+          </div>
           <button class="pbm-btn-accent pbm-btn-accent--sm" @click="handleSingleAdd">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>添加</span>
@@ -82,18 +90,18 @@
       <div v-if="entryMode === 'batch'" class="pbm-section-card">
         <h3>批量粘贴</h3>
         <div class="pbm-field" style="margin-top: 14px;">
-          <label>IMEI 列表（每行一个）</label>
+          <label>录入数据（每行一条，可用 Tab/逗号分隔 IMEI1、IMEI2、SN）</label>
           <textarea
             ref="batchImeiRef"
             v-model="batchImeiText"
             class="pbm-textarea"
             rows="6"
-            placeholder="粘贴 IMEI，每行一个&#10;&#10;例如:&#10;861234567890101&#10;861234567890102&#10;861234567890103"
+            placeholder="粘贴数据，每行一条&#10;&#10;格式: IMEI1,IMEI2,SN（IMEI2和SN可选）&#10;&#10;例如:&#10;861234567890101,861234567890102,SN123456&#10;861234567890103,,SN123457&#10;861234567890104"
           ></textarea>
         </div>
         <div class="pbm-batch-footer">
           <span class="pbm-batch-count" :class="{ 'pbm-batch-count--ok': batchImeiLines > 0 }">
-            {{ batchImeiLines }} 个 IMEI
+            {{ batchImeiLines }} 条记录
           </span>
           <button class="pbm-btn-accent pbm-btn-accent--sm" @click="handleBatchAdd">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -118,6 +126,16 @@
               </template>
             </el-table-column>
             <el-table-column label="IMEI" min-width="170" prop="imei" />
+            <el-table-column label="IMEI2" width="150" prop="imei2">
+              <template #default="{ row }">
+                <span class="pbm-dim-text">{{ row.imei2 || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="S/N" width="130" prop="snCode">
+              <template #default="{ row }">
+                <span class="pbm-dim-text">{{ row.snCode || '-' }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="单价" width="120">
               <template #default="{ row }">
                 ¥{{ (row.unitPrice || 0).toFixed(2) }}
@@ -178,6 +196,8 @@ const selectedModel = computed(() => models.value.find(m => m.id === searchModel
 const entryMode = ref<'single' | 'batch'>('single')
 const singleImeiRef = ref<HTMLInputElement>()
 const singleImei = ref('')
+const singleImei2 = ref('')
+const singleSnCode = ref('')
 const unitPrice = ref(0)
 const batchImeiRef = ref<HTMLTextAreaElement>()
 const batchImeiText = ref('')
@@ -200,6 +220,11 @@ const parsedImeiList = computed(() => {
     .split('\n')
     .map(l => l.trim())
     .filter(l => l.length > 0)
+    .map(l => {
+      // 支持逗号、Tab、空格分隔: IMEI1,IMEI2,SN
+      const parts = l.split(/[,\t\s]+/)
+      return { imei: parts[0] || '', imei2: parts[1] || '', snCode: parts[2] || '' }
+    })
 })
 
 function tableSummary(param: { columns: any[]; data: any[] }) {
@@ -300,6 +325,8 @@ async function handleSingleAdd() {
     brandName: model.brandName || '',
     modelName: model.name,
     imei: singleImei.value.trim(),
+    imei2: singleImei2.value.trim() || undefined,
+    snCode: singleSnCode.value.trim() || undefined,
     unitPrice: unitPrice.value,
   }
 
@@ -310,6 +337,8 @@ async function handleSingleAdd() {
 
   items.value.push(item)
   singleImei.value = ''
+  singleImei2.value = ''
+  singleSnCode.value = ''
   await nextTick()
   singleImeiRef.value?.focus()
 }
@@ -329,29 +358,32 @@ async function handleBatchAdd() {
   }
 
   const model = selectedModel.value
-  const imeiList = parsedImeiList.value
+  const parsedList = parsedImeiList.value
   const existingImeis = new Set(items.value.map(i => i.imei))
   let addedCount = 0
 
-  for (const imei of imeiList) {
-    if (existingImeis.has(imei)) continue
+  for (const entry of parsedList) {
+    if (!entry.imei) continue
+    if (existingImeis.has(entry.imei)) continue
     items.value.push({
       id: --localIdCounter,
       modelId: model.id,
       brandName: model.brandName || '',
       modelName: model.name,
-      imei,
+      imei: entry.imei,
+      imei2: entry.imei2 || undefined,
+      snCode: entry.snCode || undefined,
       unitPrice: unitPrice.value,
     })
-    existingImeis.add(imei)
+    existingImeis.add(entry.imei)
     addedCount++
   }
 
   if (addedCount > 0) {
     ElMessage.success(`成功添加 ${addedCount} 台`)
   }
-  if (addedCount < imeiList.length) {
-    ElMessage.warning(`${imeiList.length - addedCount} 个 IMEI 已存在，已跳过`)
+  if (addedCount < parsedList.length) {
+    ElMessage.warning(`${parsedList.length - addedCount} 个 IMEI 已存在，已跳过`)
   }
   batchImeiText.value = ''
 }
@@ -389,6 +421,8 @@ async function handleConfirm() {
       items: items.value.map(i => ({
         modelId: i.modelId,
         imei: i.imei,
+        imei2: i.imei2,
+        snCode: i.snCode,
         unitPrice: i.unitPrice || 0,
       })),
     })
@@ -407,6 +441,8 @@ function resetForm() {
   searchModelId.value = undefined
   unitPrice.value = 0
   singleImei.value = ''
+  singleImei2.value = ''
+  singleSnCode.value = ''
   batchImeiText.value = ''
 }
 </script>
@@ -510,7 +546,23 @@ function resetForm() {
   flex-wrap: wrap;
 }
 .pbm-field { display: flex; flex-direction: column; gap: 5px; }
+.pbm-field-optional { min-width: 140px; }
+.pbm-optional-tag { font-size: 10px; color: var(--pbm-text-dim); font-weight: 400; text-transform: none; letter-spacing: 0; }
 .pbm-field label { font-size: 11px; font-weight: 600; color: var(--pbm-text-dim); text-transform: uppercase; letter-spacing: 0.3px; }
+.pbm-slim-input {
+  padding: 8px 10px;
+  background: var(--pbm-bg);
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  font-size: 13px;
+  color: var(--pbm-text);
+  font-family: var(--pbm-mono);
+  min-width: 120px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pbm-slim-input:focus { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
+.pbm-dim-text { color: var(--pbm-text-dim); font-size: 12px; }
 .pbm-scan-input-wrapper {
   display: flex;
   align-items: center;

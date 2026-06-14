@@ -126,6 +126,16 @@
             </template>
           </el-table-column>
           <el-table-column label="IMEI" width="150" prop="imei" />
+          <el-table-column label="IMEI2" width="130">
+            <template #default="{ row }">
+              {{ row.imei2 || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="S/N" width="120">
+            <template #default="{ row }">
+              {{ row.sn_code || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="costPrice" label="单价" width="90" align="right">
             <template #default="{ row }">¥{{ row.costPrice?.toFixed(2) }}</template>
           </el-table-column>

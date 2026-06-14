@@ -52,6 +52,22 @@
               </template>
             </el-table-column>
             <el-table-column label="IMEI" width="170" prop="imei" />
+            <el-table-column label="IMEI2" width="150">
+              <template #default="{ row }">
+                <div v-if="row.imei2" class="pbm-cell-info">{{ row.imei2 }}</div>
+                <div v-else class="pbm-cell-missing" @click="editImei2(row)">
+                  <el-tag size="small" type="warning" effect="plain" style="cursor:pointer;">待补录</el-tag>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="S/N" width="130">
+              <template #default="{ row }">
+                <div v-if="row.snCode" class="pbm-cell-info">{{ row.snCode }}</div>
+                <div v-else class="pbm-cell-missing" @click="editSnCode(row)">
+                  <el-tag size="small" type="warning" effect="plain" style="cursor:pointer;">待补录</el-tag>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column label="售价" width="140">
               <template #default="{ row }">
                 <el-input-number v-model="row.price" :min="0" :precision="2" :step="100" size="small" controls-position="right" style="width:130px;" />
@@ -126,8 +142,29 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+
+function editImei2(row: any) {
+  ElMessageBox.prompt('请输入IMEI2', '补录IMEI2', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputPattern: /^\d{15}$/,
+    inputErrorMessage: 'IMEI2格式不正确（15位数字）'
+  }).then(({ value }) => {
+    row.imei2 = value
+  }).catch(() => {})
+}
+
+function editSnCode(row: any) {
+  ElMessageBox.prompt('请输入S/N码', '补录S/N', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+  }).then(({ value }) => {
+    row.snCode = value
+  }).catch(() => {})
+}
+
 import { getStores } from '@/api/store'
 import { scanImeiForSale } from '@/api/inventory'
 import { createSale } from '@/api/sales'
@@ -151,6 +188,8 @@ const storeInfo = ref({ name: '', address: '', phone: '' })
 const cartItems = ref<Array<{
   modelId: number
   imei: string
+  imei2: string | null
+  snCode: string | null
   brandName: string
   modelName: string
   color: string
@@ -254,6 +293,8 @@ function addToCart() {
   cartItems.value.push({
     modelId: matchedItem.value.modelId,
     imei: matchedItem.value.imei,
+    imei2: matchedItem.value.imei2 || null,
+    snCode: matchedItem.value.sn_code || null,
     brandName: matchedItem.value.brandName || '',
     modelName: matchedItem.value.modelName || '',
     color: matchedItem.value.color || '',
@@ -315,6 +356,8 @@ async function handleCheckout() {
         skuId: i.modelId,
         modelName: `${i.brandName} ${i.modelName} - ${i.color}/${i.storage}`,
         imei: i.imei,
+        imei2: i.imei2,
+        snCode: i.snCode,
         quantity: 1,
         price: i.price,
       })),
@@ -577,6 +620,8 @@ function resetAll() {
 .pbm-table-wrapper :deep(.el-table__header-wrapper) { border-bottom: 1px solid var(--pbm-border); }
 .pbm-table-wrapper :deep(.el-table__header th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
 .pbm-table-wrapper :deep(.el-table__body tr.el-table__row--striped) { background: #faf7f4; }
+.pbm-cell-info { font-family: var(--pbm-mono); font-size: 12px; color: var(--pbm-text); }
+.pbm-cell-missing { cursor: pointer; }
 .pbm-table-wrapper :deep(.el-table__inner-wrapper::before),
 .pbm-table-wrapper :deep(.el-table__inner-wrapper::after) { display: none; }
 .pbm-table-wrapper :deep(.el-table__body-wrapper) { overflow-y: auto; }
