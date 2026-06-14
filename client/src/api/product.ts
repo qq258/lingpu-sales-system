@@ -4,7 +4,7 @@ export interface BrandData {
   id?: number
   name: string
   description?: string
-  models?: Array<{ id: number; name: string }>
+  models?: Array<{ id: number; name: string; color?: string; ram?: string; rom?: string; sale_price?: number; cost_price?: number }>
   _count?: { models: number }
 }
 
@@ -16,6 +16,9 @@ export interface ModelData {
   color?: string
   ram?: string
   rom?: string
+  salePrice?: number
+  costPrice?: number
+  barcode?: string
   osType?: string
   launchYear?: number
   networkType?: string
@@ -23,20 +26,6 @@ export interface ModelData {
   cpu?: string
   battery?: string
   description?: string
-}
-
-export interface SkuData {
-  id?: number
-  brandId: number
-  brandName?: string
-  modelId: number
-  modelName?: string
-  color?: string
-  storage?: string
-  price: number
-  costPrice?: number
-  barcode?: string
-  stock?: number
 }
 
 export async function getBrands(): Promise<BrandData[]> {
@@ -69,6 +58,9 @@ export async function getModels(brandId?: number): Promise<ModelData[]> {
     color: item.color,
     ram: item.ram,
     rom: item.rom,
+    salePrice: item.sale_price,
+    costPrice: item.cost_price,
+    barcode: item.manufacturer_barcode,
     osType: item.os_type,
     launchYear: item.launch_year,
     networkType: item.network_type,
@@ -86,6 +78,9 @@ export async function createModel(data: ModelData): Promise<ModelData> {
     color: data.color,
     ram: data.ram,
     rom: data.rom,
+    sale_price: data.salePrice,
+    cost_price: data.costPrice,
+    manufacturer_barcode: data.barcode,
     os_type: data.osType,
     launch_year: data.launchYear,
     network_type: data.networkType,
@@ -104,6 +99,9 @@ export async function updateModel(id: number, data: ModelData): Promise<ModelDat
     color: data.color,
     ram: data.ram,
     rom: data.rom,
+    sale_price: data.salePrice,
+    cost_price: data.costPrice,
+    manufacturer_barcode: data.barcode,
     os_type: data.osType,
     launch_year: data.launchYear,
     network_type: data.networkType,
@@ -119,74 +117,25 @@ export async function deleteModel(id: number): Promise<void> {
   await request.delete(`/products/models/${id}`)
 }
 
-export async function getSkus(params?: {
-  brandId?: number
-  modelId?: number
-  keyword?: string
-  page?: number
-  pageSize?: number
-}): Promise<{ list: SkuData[]; total: number }> {
-  const apiParams: any = {}
-  if (params?.brandId) apiParams.brand_id = params.brandId
-  if (params?.modelId) apiParams.model_id = params.modelId
-  if (params?.keyword) apiParams.keyword = params.keyword
-  if (params?.page) apiParams.page = params.page
-  if (params?.pageSize) apiParams.pageSize = params.pageSize
-  const res: any = await request.get('/products/skus', { params: apiParams })
-  const list: any[] = res.data || []
-  const mapped: SkuData[] = list.map((s: any) => ({
-    id: s.id,
-    brandId: s.model?.brand?.id,
-    brandName: s.model?.brand?.name || '',
-    modelId: s.model_id,
-    modelName: s.model?.name || '',
-    color: s.color || '',
-    storage: [s.ram, s.rom].filter(Boolean).join('/') || '',
-    price: s.sale_price || 0,
-    costPrice: s.cost_price || 0,
-    barcode: s.manufacturer_barcode || '',
+export async function searchModels(keyword: string): Promise<ModelData[]> {
+  const res: any = await request.get('/products/models/search', { params: { keyword } })
+  return (res.data || []).map((item: any) => ({
+    id: item.id,
+    brandId: item.brandId,
+    brandName: item.brandName,
+    name: item.modelName,
+    modelName: item.modelName,
+    color: item.color,
+    ram: item.ram,
+    rom: item.rom,
+    storage: item.storage,
+    salePrice: item.salePrice,
+    costPrice: item.costPrice,
+    barcode: item.barcode,
   }))
-  return { list: mapped, total: mapped.length }
 }
 
-export async function createSku(data: SkuData): Promise<SkuData> {
-  const res: any = await request.post('/products/skus', data)
-  return res.data
-}
-
-export async function updateSku(id: number, data: SkuData): Promise<SkuData> {
-  const res: any = await request.put(`/products/skus/${id}`, data)
-  return res.data
-}
-
-export async function deleteSku(id: number): Promise<void> {
-  await request.delete(`/products/skus/${id}`)
-}
-
-export async function scanSku(barcode: string): Promise<SkuData> {
-  const res: any = await request.get('/products/skus/scan', { params: { barcode } })
-  return res.data
-}
-
-export async function searchSkus(keyword: string): Promise<SkuData[]> {
-  const res: any = await request.get('/products/skus/search', { params: { keyword } })
-  return res.data || []
-}
-
-export interface ScanBrandModelResult {
-  brandId: number
-  brandName: string
-  modelId: number
-  modelName: string
-  skuCode?: string
-  color?: string
-  ram?: string
-  rom?: string
-  salePrice?: number
-  costPrice?: number
-}
-
-export async function scanBrandModel(barcode: string): Promise<ScanBrandModelResult> {
-  const res: any = await request.get('/products/scan-brand-model', { params: { barcode } })
+export async function scanBarcode(barcode: string): Promise<ModelData> {
+  const res: any = await request.get('/products/scan-barcode', { params: { barcode } })
   return res.data
 }

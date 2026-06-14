@@ -27,7 +27,18 @@
 
       <div class="pbm-section-card">
         <h3>选择商品</h3>
-        <SkuSelector ref="skuSelectorRef" mode="purchase" v-model="unitPrice" @select="onSkuSelect" />
+        <div class="pbm-model-select">
+          <el-select v-model="searchBrandId" placeholder="选择品牌" clearable filterable @change="onBrandChange" style="width: 150px;">
+            <el-option v-for="brand in brands" :key="brand.id" :label="brand.name" :value="brand.id" />
+          </el-select>
+          <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable style="width: 300px;" :disabled="!searchBrandId">
+            <el-option v-for="model in models" :key="model.id" :label="`${model.name} - ${model.color || ''}/${model.ram || ''}/${model.rom || ''}  ¥${model.salePrice || 0}`" :value="model.id" />
+          </el-select>
+          <div class="pbm-field" style="flex:1;min-width:120px;">
+            <label>单价</label>
+            <input v-model.number="unitPrice" type="number" class="pbm-number-input" placeholder="¥0.00" min="0" step="0.01" />
+          </div>
+        </div>
       </div>
 
       <div class="pbm-section-card">
@@ -98,18 +109,18 @@
             <el-table-column type="index" label="序号" width="60" />
             <el-table-column label="品牌" width="120">
               <template #default="{ row }">
-                <el-tag size="small" type="primary">{{ row.sku?.brandName || row.sku?.model?.brand?.name || '' }}</el-tag>
+                <el-tag size="small" type="primary">{{ row.brandName }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="型号" min-width="140">
               <template #default="{ row }">
-                {{ row.sku?.modelName || row.sku?.model?.name || '' }}
+                {{ row.modelName }}
               </template>
             </el-table-column>
             <el-table-column label="IMEI" min-width="170" prop="imei" />
             <el-table-column label="单价" width="120">
               <template #default="{ row }">
-                ¥{{ (row.unitPrice || row.unit_price || 0).toFixed(2) }}
+                ¥{{ (row.unitPrice || 0).toFixed(2) }}
               </template>
             </el-table-column>
             <el-table-column label="操作" width="80" fixed="right">
@@ -142,14 +153,10 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import {
-  getSuppliers,
-  quickConfirmPurchaseEntry,
-} from '@/api/purchase'
+import { getSuppliers, quickConfirmPurchaseEntry } from '@/api/purchase'
 import type { SupplierData } from '@/api/purchase'
-import type { SkuData } from '@/api/product'
+import { getBrands, getModels } from '@/api/product'
 import { createScanner } from '@/utils/scanner'
-import SkuSelector from '@/components/SkuSelector.vue'
 
 const userStore = useUserStore()
 const emit = defineEmits<{ back: [] }>()
@@ -160,18 +167,20 @@ const confirmLoading = ref(false)
 
 let localIdCounter = 0
 
-const skuSelectorRef = ref<InstanceType<typeof SkuSelector>>()
-const selectedSku = ref<SkuData | null>(null)
+const brands = ref<any[]>([])
+const models = ref<any[]>([])
+const searchBrandId = ref<number | undefined>()
+const searchModelId = ref<number | undefined>()
+
+const selectedModelId = computed(() => searchModelId.value)
+const selectedModel = computed(() => models.value.find(m => m.id === searchModelId.value))
 
 const entryMode = ref<'single' | 'batch'>('single')
-
 const singleImeiRef = ref<HTMLInputElement>()
 const singleImei = ref('')
 const unitPrice = ref(0)
-
 const batchImeiRef = ref<HTMLTextAreaElement>()
 const batchImeiText = ref('')
-
 const items = ref<any[]>([])
 
 const batchImeiLines = computed(() => {
@@ -183,7 +192,7 @@ const batchImeiLines = computed(() => {
 })
 
 const canAddSingle = computed(() => {
-  return !!(selectedSku.value && singleImei.value.trim() && unitPrice.value > 0)
+  return !!(selectedModelId.value && singleImei.value.trim() && unitPrice.value > 0)
 })
 
 const parsedImeiList = computed(() => {
@@ -206,9 +215,7 @@ function tableSummary(param: { columns: any[]; data: any[] }) {
       return
     }
     if (column.label === '单价') {
-      const total = data.reduce((sum, row) => {
-        return sum + (row.unitPrice || row.unit_price || 0)
-      }, 0)
+      const total = data.reduce((sum, row) => sum + (row.unitPrice || 0), 0)
       sums[index] = `¥${total.toFixed(2)}`
       return
     }
@@ -241,6 +248,9 @@ const scanner = createScanner({
 
 onMounted(async () => {
   await loadSuppliers()
+  try {
+    brands.value = await getBrands()
+  } catch {}
   scanner.attach()
 })
 
@@ -256,13 +266,21 @@ async function loadSuppliers() {
   }
 }
 
-function onSkuSelect(sku: SkuData) {
-  selectedSku.value = sku
-  ElMessage.success(`已选择: ${sku.brandName} ${sku.modelName} - ${sku.color} / ${sku.storage}`)
+async function onBrandChange() {
+  searchModelId.value = undefined
+  if (searchBrandId.value) {
+    try {
+      models.value = await getModels(searchBrandId.value)
+    } catch {
+      models.value = []
+    }
+  } else {
+    models.value = []
+  }
 }
 
 async function handleSingleAdd() {
-  if (!selectedSku.value?.id) {
+  if (!selectedModelId.value) {
     ElMessage.warning('请先在上方选择品牌和型号')
     return
   }
@@ -275,21 +293,16 @@ async function handleSingleAdd() {
     return
   }
 
-  const sku = selectedSku.value
+  const model = selectedModel.value
   const item = {
     id: --localIdCounter,
-    sku_id: sku.id,
-    sku: {
-      brandName: sku.brandName,
-      modelName: sku.modelName,
-      model: { brand: { name: sku.brandName }, name: sku.modelName },
-    },
+    modelId: model.id,
+    brandName: model.brandName || '',
+    modelName: model.name,
     imei: singleImei.value.trim(),
     unitPrice: unitPrice.value,
-    unit_price: unitPrice.value,
   }
 
-  // 检查 IMEI 是否已添加
   if (items.value.some(i => i.imei === item.imei)) {
     ElMessage.warning(`IMEI ${item.imei} 已添加到清单中`)
     return
@@ -302,7 +315,7 @@ async function handleSingleAdd() {
 }
 
 async function handleBatchAdd() {
-  if (!selectedSku.value?.id) {
+  if (!selectedModelId.value) {
     ElMessage.warning('请先在上方选择品牌和型号')
     return
   }
@@ -315,7 +328,7 @@ async function handleBatchAdd() {
     return
   }
 
-  const sku = selectedSku.value
+  const model = selectedModel.value
   const imeiList = parsedImeiList.value
   const existingImeis = new Set(items.value.map(i => i.imei))
   let addedCount = 0
@@ -324,15 +337,11 @@ async function handleBatchAdd() {
     if (existingImeis.has(imei)) continue
     items.value.push({
       id: --localIdCounter,
-      sku_id: sku.id,
-      sku: {
-        brandName: sku.brandName,
-        modelName: sku.modelName,
-        model: { brand: { name: sku.brandName }, name: sku.modelName },
-      },
+      modelId: model.id,
+      brandName: model.brandName || '',
+      modelName: model.name,
       imei,
       unitPrice: unitPrice.value,
-      unit_price: unitPrice.value,
     })
     existingImeis.add(imei)
     addedCount++
@@ -378,9 +387,9 @@ async function handleConfirm() {
       remark: form.value.remark || undefined,
       storeId: userStore.effectiveStoreId || undefined,
       items: items.value.map(i => ({
-        skuId: i.sku_id,
+        modelId: i.modelId,
         imei: i.imei,
-        unitPrice: i.unitPrice || i.unit_price || 0,
+        unitPrice: i.unitPrice || 0,
       })),
     })
     ElMessage.success(`入库成功，共 ${items.value.length} 台`)
@@ -394,11 +403,11 @@ async function handleConfirm() {
 function resetForm() {
   form.value = { supplierId: null, remark: '' }
   items.value = []
-  selectedSku.value = null
-  singleImei.value = ''
+  searchBrandId.value = undefined
+  searchModelId.value = undefined
   unitPrice.value = 0
+  singleImei.value = ''
   batchImeiText.value = ''
-  skuSelectorRef.value?.focus()
 }
 </script>
 
@@ -433,7 +442,6 @@ function resetForm() {
   font-family: var(--pbm-font);
   background: var(--pbm-bg);
 }
-
 .pbm-header {
   display: flex;
   align-items: center;
@@ -445,7 +453,6 @@ function resetForm() {
 .pbm-header-left { display: flex; align-items: center; gap: 12px; }
 .pbm-title { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: var(--pbm-text); margin: 0; }
 .pbm-subtitle { font-size: 12px; color: var(--pbm-text-dim); letter-spacing: 0.4px; text-transform: uppercase; font-family: var(--pbm-mono); }
-
 .pbm-body {
   flex: 1;
   display: flex;
@@ -455,7 +462,6 @@ function resetForm() {
   padding: 20px 24px;
   gap: 16px;
 }
-
 .pbm-section-card {
   background: var(--pbm-surface);
   border: 1px solid var(--pbm-border);
@@ -470,14 +476,14 @@ function resetForm() {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--pbm-border);
 }
-.pbm-section-empty {
-  padding: 20px 0;
-}
-
-.pbm-mode-toggle {
+.pbm-model-select {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
 }
+.pbm-section-empty { padding: 20px 0; }
+.pbm-mode-toggle { display: flex; gap: 12px; }
 .pbm-radio-card {
   display: flex;
   align-items: center;
@@ -495,32 +501,16 @@ function resetForm() {
 }
 .pbm-radio-card input { display: none; }
 .pbm-radio-card:hover { border-color: var(--pbm-text-dim); }
-.pbm-radio-card.active {
-  border-color: var(--pbm-accent);
-  color: var(--pbm-text);
-  background: var(--pbm-accent-glow);
-}
+.pbm-radio-card.active { border-color: var(--pbm-accent); color: var(--pbm-text); background: var(--pbm-accent-glow); }
 .pbm-radio-card svg { flex-shrink: 0; }
-
 .pbm-entry-row {
   display: flex;
   align-items: flex-end;
   gap: 14px;
   flex-wrap: wrap;
 }
-.pbm-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.pbm-field label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--pbm-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
+.pbm-field { display: flex; flex-direction: column; gap: 5px; }
+.pbm-field label { font-size: 11px; font-weight: 600; color: var(--pbm-text-dim); text-transform: uppercase; letter-spacing: 0.3px; }
 .pbm-scan-input-wrapper {
   display: flex;
   align-items: center;
@@ -532,14 +522,8 @@ function resetForm() {
   min-width: 260px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.pbm-scan-input-wrapper:focus-within {
-  border-color: var(--pbm-accent);
-  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
-}
-.pbm-scan-input-icon {
-  color: var(--pbm-text-dim);
-  flex-shrink: 0;
-}
+.pbm-scan-input-wrapper:focus-within { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
+.pbm-scan-input-icon { color: var(--pbm-text-dim); flex-shrink: 0; }
 .pbm-scan-input {
   flex: 1;
   border: none;
@@ -549,11 +533,7 @@ function resetForm() {
   color: var(--pbm-text);
   font-family: var(--pbm-mono);
 }
-.pbm-scan-input::placeholder {
-  color: rgba(138,127,114,0.4);
-  font-family: var(--pbm-font);
-}
-
+.pbm-scan-input::placeholder { color: rgba(138,127,114,0.4); font-family: var(--pbm-font); }
 .pbm-number-input {
   padding: 8px 12px;
   background: var(--pbm-bg);
@@ -566,15 +546,7 @@ function resetForm() {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.pbm-number-input:focus {
-  border-color: var(--pbm-accent);
-  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
-}
-.pbm-number-input::placeholder {
-  color: rgba(138,127,114,0.4);
-  font-family: var(--pbm-font);
-}
-
+.pbm-number-input:focus { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
 .pbm-textarea {
   width: 100%;
   max-width: 460px;
@@ -590,35 +562,11 @@ function resetForm() {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.pbm-textarea:focus {
-  border-color: var(--pbm-accent);
-  box-shadow: 0 0 0 2px var(--pbm-accent-glow);
-}
-.pbm-textarea::placeholder {
-  color: rgba(138,127,114,0.4);
-  font-family: var(--pbm-font);
-}
-
-.pbm-batch-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
-  max-width: 460px;
-}
-.pbm-batch-count {
-  font-size: 12px;
-  color: var(--pbm-text-dim);
-  font-family: var(--pbm-mono);
-  font-weight: 600;
-}
-.pbm-batch-count--ok {
-  color: var(--pbm-green);
-}
-
-.pbm-table-wrapper {
-  margin-bottom: 12px;
-}
+.pbm-textarea:focus { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
+.pbm-batch-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; max-width: 460px; }
+.pbm-batch-count { font-size: 12px; color: var(--pbm-text-dim); font-family: var(--pbm-mono); font-weight: 600; }
+.pbm-batch-count--ok { color: var(--pbm-green); }
+.pbm-table-wrapper { margin-bottom: 12px; }
 .pbm-table-wrapper :deep(.el-table) {
   --el-table-border-color: var(--pbm-border);
   --el-table-header-bg-color: #f0ebe5;
@@ -631,22 +579,7 @@ function resetForm() {
   border: 1px solid var(--pbm-border);
   border-radius: var(--pbm-radius);
 }
-.pbm-table-wrapper :deep(.el-table__header-wrapper) { border-bottom: 1px solid var(--pbm-border); }
-.pbm-table-wrapper :deep(.el-table__header th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-.pbm-table-wrapper :deep(.el-table__body tr.el-table__row--striped) { background: #faf7f4; }
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::before),
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::after) { display: none; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper) { overflow-y: auto; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: #d5ccc0; border-radius: 3px; }
-
-.pbm-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 0 0 4px;
-}
-
+.pbm-form-actions { display: flex; justify-content: flex-end; gap: 12px; padding: 0 0 4px; }
 .pbm-btn-accent {
   display: inline-flex;
   align-items: center;
@@ -662,10 +595,8 @@ function resetForm() {
   transition: all 0.15s;
 }
 .pbm-btn-accent:hover { background: #dba84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,149,60,0.3); }
-.pbm-btn-accent:active { transform: translateY(0); }
 .pbm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 .pbm-btn-accent--sm { padding: 6px 14px; font-size: 12px; }
-
 .pbm-btn-plain {
   padding: 8px 20px;
   background: transparent;
@@ -677,7 +608,6 @@ function resetForm() {
   transition: all 0.15s;
 }
 .pbm-btn-plain:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); }
-
 .pbm-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -692,31 +622,20 @@ function resetForm() {
   transition: all 0.12s;
 }
 .pbm-icon-btn:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
-.pbm-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
 .pbm-btn-back {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border: 1px solid var(--pbm-border);
   border-radius: var(--pbm-radius);
   background: var(--pbm-surface);
   color: var(--pbm-text-dim);
   cursor: pointer;
-  transition: all 0.12s;
-  margin-right: 4px;
+  transition: all 0.15s;
 }
-.pbm-btn-back:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); background: var(--pbm-surface-hover); }
-
-@keyframes pbm-spin {
-  to { transform: rotate(360deg); }
-}
-.pbm-spinner {
-  animation: pbm-spin 0.8s linear infinite;
-}
-
-.pbm-body::-webkit-scrollbar { width: 4px; }
-.pbm-body::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }
+.pbm-btn-back:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); }
+.pbm-spinner { animation: pbm-spin 0.8s linear infinite; }
+@keyframes pbm-spin { to { transform: rotate(360deg); } }
 </style>

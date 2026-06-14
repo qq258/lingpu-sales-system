@@ -18,10 +18,14 @@ export async function getTransfer(id: number): Promise<any> {
 
 export async function createTransfer(data: {
   toStoreId: number
-  items: Array<{ skuId: number; quantity: number }>
+  items: Array<{ modelId: number; quantity: number }>
   remark?: string
 }): Promise<any> {
-  const res: any = await request.post('/transfer/transfers', data)
+  const res: any = await request.post('/transfer/transfers', {
+    to_store_id: data.toStoreId,
+    items: data.items.map(i => ({ model_id: i.modelId, quantity: i.quantity })),
+    remark: data.remark,
+  })
   return res.data
 }
 

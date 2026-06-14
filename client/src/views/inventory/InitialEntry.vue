@@ -25,22 +25,25 @@
         </div>
 
         <div class="pbm-body-content">
-
           <div class="pbm-section-card" v-if="!batchMode">
             <h3>逐条录入</h3>
             <el-form :model="singleForm" label-width="80px" size="small">
               <div class="pbm-form-row">
-                <el-form-item label="选择SKU" style="flex:1;">
-                  <el-select v-model="singleForm.skuId" placeholder="搜索并选择SKU" filterable remote
-                    :remote-method="searchSku" style="width:100%;">
-                    <el-option v-for="s in searchResults" :key="s.id" :label="`${s.brandName} ${s.modelName} ${s.color}/${s.storage}`" :value="s.id" />
+                <el-form-item label="选择型号" style="flex:1;">
+                  <el-select v-model="searchBrandId" placeholder="选择品牌" clearable filterable size="small" @change="onBrandChange" style="width:100%;">
+                    <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label=" " style="flex:1;">
+                  <el-select v-model="singleForm.modelId" placeholder="选择型号" filterable size="small" :disabled="!searchBrandId" style="width:100%;">
+                    <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.ram || ''}/${m.rom || ''} ¥${m.salePrice || 0}`" :value="m.id" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="数量">
                   <el-input-number v-model="singleForm.quantity" :min="1" controls-position="right" style="width:130px;" />
                 </el-form-item>
                 <el-form-item>
-                  <button class="pbm-btn-accent" :disabled="!singleForm.skuId || singleForm.quantity <= 0" @click="addSingleItem">
+                  <button class="pbm-btn-accent" :disabled="!singleForm.modelId || singleForm.quantity <= 0" @click="addSingleItem">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     <span>添加</span>
                   </button>
@@ -52,7 +55,7 @@
           <div class="pbm-section-card" v-if="batchMode">
             <h3>批量录入</h3>
             <p style="color:var(--pbm-text-dim);margin-bottom:12px;font-size:13px;">
-              每行一条，格式：SKU_ID,数量（例如：1,10）
+              每行一条，格式：型号ID,数量（例如：1,10）
             </p>
             <el-input v-model="batchText" type="textarea" :rows="4" placeholder="1,10&#10;2,20&#10;3,15" />
             <button class="pbm-btn-accent" style="margin-top:12px;" :disabled="!batchText.trim()" @click="parseBatch">
@@ -100,7 +103,6 @@
               <span>{{ submitLoading ? '提交中...' : '确认录入' }}</span>
             </button>
           </div>
-
         </div>
       </div>
     </div>
@@ -108,18 +110,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { initialEntry, batchInitialEntry } from '@/api/inventory'
-import { searchSkus } from '@/api/product'
+import { getBrands, getModels } from '@/api/product'
 
 const userStore = useUserStore()
 
 const batchMode = ref(false)
 const selectedStoreId = ref<number | null>(null)
 const pendingItems = ref<Array<{
-  skuId: number
+  modelId: number
   brandName: string
   modelName: string
   color: string
@@ -128,46 +130,52 @@ const pendingItems = ref<Array<{
 }>>([])
 const submitLoading = ref(false)
 
-const singleForm = ref({ skuId: 0, quantity: 1 })
-const searchResults = ref<any[]>([])
+const brands = ref<any[]>([])
+const models = ref<any[]>([])
+const searchBrandId = ref<number | undefined>()
+const singleForm = ref({ modelId: 0, quantity: 1 })
 const batchText = ref('')
 
-let searchTimer: ReturnType<typeof setTimeout> | null = null
+onMounted(async () => {
+  try {
+    brands.value = await getBrands()
+  } catch {}
+})
+
+async function onBrandChange() {
+  if (searchBrandId.value) {
+    try {
+      models.value = await getModels(searchBrandId.value)
+    } catch {
+      models.value = []
+    }
+  } else {
+    models.value = []
+  }
+}
 
 function switchMode() {
   batchMode.value = !batchMode.value
 }
 
-async function searchSku(keyword: string) {
-  if (!keyword) return
-  if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(async () => {
-    try {
-      searchResults.value = await searchSkus(keyword)
-    } catch {
-      searchResults.value = []
-    }
-  }, 300)
-}
-
 function addSingleItem() {
-  const sku = searchResults.value.find(s => s.id === singleForm.value.skuId)
-  if (!sku) return
+  const model = models.value.find(m => m.id === singleForm.value.modelId)
+  if (!model) return
 
-  const existing = pendingItems.value.find(i => i.skuId === sku.id)
+  const existing = pendingItems.value.find(i => i.modelId === model.id)
   if (existing) {
     existing.quantity += singleForm.value.quantity
   } else {
     pendingItems.value.push({
-      skuId: sku.id,
-      brandName: sku.brandName || '',
-      modelName: sku.modelName || '',
-      color: sku.color || '',
-      storage: sku.storage || '',
+      modelId: model.id,
+      brandName: model.brandName || '',
+      modelName: model.name,
+      color: model.color || '',
+      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
       quantity: singleForm.value.quantity,
     })
   }
-  singleForm.value = { skuId: 0, quantity: 1 }
+  singleForm.value = { modelId: 0, quantity: 1 }
   ElMessage.success('已添加')
 }
 
@@ -179,17 +187,17 @@ function parseBatch() {
     if (!trimmed) continue
     const parts = trimmed.split(',')
     if (parts.length !== 2) continue
-    const skuId = parseInt(parts[0])
+    const modelId = parseInt(parts[0])
     const quantity = parseInt(parts[1])
-    if (isNaN(skuId) || isNaN(quantity) || quantity <= 0) continue
+    if (isNaN(modelId) || isNaN(quantity) || quantity <= 0) continue
 
-    const existing = pendingItems.value.find(i => i.skuId === skuId)
+    const existing = pendingItems.value.find(i => i.modelId === modelId)
     if (existing) {
       existing.quantity += quantity
     } else {
       pendingItems.value.push({
-        skuId,
-        brandName: `SKU#${skuId}`,
+        modelId,
+        brandName: `型号#${modelId}`,
         modelName: '',
         color: '',
         storage: '',
@@ -198,8 +206,12 @@ function parseBatch() {
     }
     added++
   }
-  ElMessage.success(`成功添加 ${added} 条记录`)
-  batchText.value = ''
+  if (added > 0) {
+    ElMessage.success(`解析并添加了 ${added} 条`)
+    batchText.value = ''
+  } else {
+    ElMessage.warning('未解析到有效数据，请检查格式')
+  }
 }
 
 function removeItem(index: number) {
@@ -211,19 +223,20 @@ async function handleSubmit() {
     ElMessage.warning('请选择门店')
     return
   }
-  if (pendingItems.value.length === 0) {
-    ElMessage.warning('请添加录入项')
-    return
-  }
+  if (pendingItems.value.length === 0) return
 
   submitLoading.value = true
   try {
-    const items = pendingItems.value.map(i => ({ sku_id: i.skuId, quantity: i.quantity }))
-    await batchInitialEntry({ items, store_id: selectedStoreId.value })
+    await batchInitialEntry({
+      store_id: selectedStoreId.value,
+      items: pendingItems.value.map(i => ({
+        model_id: i.modelId,
+        quantity: i.quantity,
+      })),
+    })
     ElMessage.success('期初库存录入成功')
     resetAll()
   } catch {
-    // handled by interceptor
   } finally {
     submitLoading.value = false
   }
@@ -231,8 +244,7 @@ async function handleSubmit() {
 
 function resetAll() {
   pendingItems.value = []
-  selectedStoreId.value = null
-  singleForm.value = { skuId: 0, quantity: 1 }
+  singleForm.value = { modelId: 0, quantity: 1 }
   batchText.value = ''
 }
 </script>
@@ -266,7 +278,6 @@ function resetAll() {
   font-family: var(--pbm-font);
   background: var(--pbm-bg);
 }
-
 .pbm-header {
   display: flex;
   align-items: center;
@@ -278,7 +289,81 @@ function resetAll() {
 .pbm-header-left { display: flex; align-items: baseline; gap: 12px; }
 .pbm-title { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: var(--pbm-text); margin: 0; }
 .pbm-subtitle { font-size: 12px; color: var(--pbm-text-dim); letter-spacing: 0.4px; text-transform: uppercase; font-family: var(--pbm-mono); }
-
+.pbm-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+  gap: 16px;
+}
+.pbm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pbm-main-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.pbm-search-group { display: flex; gap: 10px; align-items: center; }
+.pbm-section-count { font-size: 12px; color: var(--pbm-text-dim); font-family: var(--pbm-mono); }
+.pbm-body-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+.pbm-section-card {
+  background: var(--pbm-surface);
+  border: 1px solid var(--pbm-border);
+  border-radius: var(--pbm-radius);
+  padding: 20px;
+}
+.pbm-section-card h3 {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pbm-text);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--pbm-border);
+}
+.pbm-form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.pbm-table-wrapper { margin-bottom: 12px; }
+.pbm-table-wrapper--compact :deep(.el-table__header th) { padding: 6px 8px !important; }
+.pbm-table-wrapper--compact :deep(.el-table__body td) { padding: 4px 8px !important; }
+.pbm-empty-hint {
+  text-align: center;
+  color: var(--pbm-text-dim);
+  font-size: 13px;
+  padding: 24px 0;
+}
+.pbm-tag-brand {
+  display: inline-block;
+  padding: 1px 8px;
+  background: var(--pbm-accent-glow);
+  color: var(--pbm-accent);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.pbm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 0 4px;
+}
 .pbm-btn-accent {
   display: inline-flex;
   align-items: center;
@@ -294,9 +379,7 @@ function resetAll() {
   transition: all 0.15s;
 }
 .pbm-btn-accent:hover { background: #dba84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,149,60,0.3); }
-.pbm-btn-accent:active { transform: translateY(0); }
 .pbm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-
 .pbm-btn-plain {
   padding: 8px 20px;
   background: transparent;
@@ -308,7 +391,7 @@ function resetAll() {
   transition: all 0.15s;
 }
 .pbm-btn-plain:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); }
-
+.pbm-cell-actions { display: flex; gap: 4px; justify-content: center; }
 .pbm-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -322,195 +405,5 @@ function resetAll() {
   cursor: pointer;
   transition: all 0.12s;
 }
-.pbm-icon-btn:hover { background: var(--pbm-blue-dim); color: var(--pbm-blue); }
-.pbm-icon-btn--danger:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
-.pbm-icon-btn--sm { width: 24px; height: 24px; }
-
-.pbm-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-.pbm-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  background: var(--pbm-bg);
-}
-
-.pbm-main-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px 12px;
-  flex-shrink: 0;
-}
-.pbm-search-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.pbm-select-wrapper {
-  display: flex;
-  align-items: center;
-}
-.pbm-select-wrapper :deep(.el-select) { width: 200px; }
-.pbm-select-wrapper :deep(.el-select__wrapper) {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-  font-size: 13px;
-  min-height: 34px;
-}
-.pbm-select-wrapper :deep(.el-select__wrapper:hover) { border-color: var(--pbm-text-dim); }
-.pbm-select-wrapper :deep(.el-select__wrapper.is-focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-.pbm-select-wrapper :deep(.el-select-dropdown) { background: var(--pbm-surface); border: 1px solid var(--pbm-border); }
-.pbm-select-wrapper :deep(.el-select-dropdown__item) { color: var(--pbm-text); }
-.pbm-select-wrapper :deep(.el-select-dropdown__item.hover) { background: var(--pbm-surface-hover); }
-.pbm-select-wrapper :deep(.el-select-dropdown__item.selected) { color: var(--pbm-accent); background: var(--pbm-accent-glow); font-weight: 600; }
-
-.pbm-section-count {
-  font-size: 12px;
-  color: var(--pbm-text-dim);
-  font-family: var(--pbm-mono);
-}
-
-.pbm-body-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 24px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.pbm-body-content::-webkit-scrollbar { width: 4px; }
-.pbm-body-content::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }
-
-.pbm-section-card {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-  padding: 20px 24px;
-  flex-shrink: 0;
-}
-.pbm-section-card h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 0 16px;
-  color: var(--pbm-text);
-}
-
-.pbm-form-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.pbm-table-wrapper {
-  flex: 1;
-  min-height: 0;
-}
-.pbm-table-wrapper--compact {
-  flex: none;
-}
-.pbm-table-wrapper :deep(.el-table) {
-  --el-table-border-color: var(--pbm-border);
-  --el-table-header-bg-color: #f0ebe5;
-  --el-table-tr-bg-color: #fff;
-  --el-table-row-hover-bg-color: var(--pbm-surface-hover);
-  --el-table-current-row-bg-color: rgba(201,149,60,0.06);
-  --el-table-text-color: var(--pbm-text);
-  --el-table-header-text-color: var(--pbm-text-dim);
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-}
-.pbm-table-wrapper :deep(.el-table__header-wrapper) { border-bottom: 1px solid var(--pbm-border); }
-.pbm-table-wrapper :deep(.el-table__header th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-.pbm-table-wrapper :deep(.el-table__body tr.el-table__row--striped) { background: #faf7f4; }
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::before),
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::after) { display: none; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper) { overflow-y: auto; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: var(--pbm-border); border-radius: 3px; }
-
-.pbm-cell-actions { display: flex; gap: 2px; }
-
-.pbm-tag-brand {
-  display: inline-block;
-  background: #ede7e0;
-  color: var(--pbm-text);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  margin-right: 4px;
-  font-family: var(--pbm-mono);
-  vertical-align: middle;
-}
-
-.pbm-empty-hint {
-  text-align: center;
-  padding: 24px;
-  color: var(--pbm-text-dim);
-  font-size: 13px;
-}
-
-.pbm-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-:deep(.pbm-dialog) { border-radius: 8px; overflow: hidden; }
-:deep(.pbm-dialog .el-dialog) {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: 8px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.15);
-}
-:deep(.pbm-dialog .el-dialog__header) { padding: 16px 24px; border-bottom: 1px solid var(--pbm-border); margin: 0; }
-:deep(.pbm-dialog .el-dialog__title) { font-size: 15px; font-weight: 600; color: var(--pbm-text); }
-:deep(.pbm-dialog .el-dialog__body) { padding: 20px 24px; }
-:deep(.pbm-dialog .el-dialog__footer) {
-  padding: 12px 24px 16px;
-  border-top: 1px solid var(--pbm-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-:deep(.pbm-dialog .el-dialog__close) { color: var(--pbm-text-dim); }
-:deep(.pbm-dialog .el-dialog__close:hover) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-form-item__label) { color: var(--pbm-text-dim); font-size: 13px; }
-:deep(.pbm-dialog .el-input__wrapper),
-:deep(.pbm-dialog .el-select__wrapper),
-:deep(.pbm-dialog .el-textarea__inner) {
-  background: #f5f0eb;
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-}
-:deep(.pbm-dialog .el-input__wrapper:hover),
-:deep(.pbm-dialog .el-select__wrapper:hover),
-:deep(.pbm-dialog .el-textarea__inner:hover) { border-color: var(--pbm-text-dim); }
-:deep(.pbm-dialog .el-input__wrapper.is-focus),
-:deep(.pbm-dialog .el-select__wrapper.is-focus),
-:deep(.pbm-dialog .el-textarea__inner:focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-:deep(.pbm-dialog .el-input__inner) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-input__inner::placeholder) { color: rgba(138,127,114,0.4); }
-:deep(.pbm-dialog .el-select-dropdown) { background: var(--pbm-surface); border: 1px solid var(--pbm-border); }
-:deep(.pbm-dialog .el-select-dropdown__item) { color: var(--pbm-text); }
-:deep(.pbm-dialog .el-select-dropdown__item.hover) { background: var(--pbm-surface-hover); }
-:deep(.pbm-dialog .el-select-dropdown__item.selected) { color: var(--pbm-accent); background: var(--pbm-accent-glow); font-weight: 600; }
-
-.pbm-body::-webkit-scrollbar { width: 4px; }
-.pbm-body::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }
+.pbm-icon-btn:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
 </style>

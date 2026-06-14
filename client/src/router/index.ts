@@ -17,7 +17,6 @@ const routes = [
       { path: 'dashboard', component: () => import('@/views/dashboard/Index.vue'), meta: { title: '数据看板' } },
       { path: 'store/list', component: () => import('@/views/store/StoreList.vue'), meta: { title: '门店管理', roles: ['super_admin'] } },
       { path: 'product/brand-model', component: () => import('@/views/product/ProductBrandModel.vue'), meta: { title: '品牌型号管理' } },
-      { path: 'product/sku', component: () => import('@/views/product/SkuList.vue'), meta: { title: 'SKU管理' } },
       { path: 'purchase/supplier', component: () => import('@/views/purchase/SupplierList.vue'), meta: { title: '供应商管理' } },
       { path: 'purchase/entry/list', component: () => import('@/views/purchase/PurchaseEntryIndex.vue'), meta: { title: '入库管理' } },
       { path: 'inventory', component: () => import('@/views/inventory/InventoryList.vue'), meta: { title: '库存查询' } },

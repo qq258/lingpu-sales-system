@@ -40,8 +40,7 @@
                 <span class="pbm-cell-name">{{ row.supplierName }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="itemCount" label="商品种类" width="80" align="center" />
-            <el-table-column prop="totalQuantity" label="总数量" width="80" align="center" />
+            <el-table-column prop="itemCount" label="总数量" width="80" align="center" />
             <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
               <template #default="{ row }">
                 <span class="pbm-cell-price">¥{{ row.totalAmount?.toFixed(2) }}</span>
@@ -120,8 +119,8 @@
         <el-table :data="detailData?.items || []" stripe size="small">
           <el-table-column label="商品" min-width="200">
             <template #default="{ row }">
-              <span class="pbm-sku-cell">
-                <span class="pbm-sku-brand">{{ row.brandName }}</span>
+              <span class="pbm-model-cell">
+                <span class="pbm-model-brand">{{ row.brandName }}</span>
                 {{ row.modelName }} {{ row.color }} / {{ row.storage }}
               </span>
             </template>
@@ -511,12 +510,12 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-.pbm-sku-cell {
+.pbm-model-cell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
-.pbm-sku-brand {
+.pbm-model-brand {
   display: inline-block;
   padding: 1px 6px;
   background: var(--pbm-accent-glow);

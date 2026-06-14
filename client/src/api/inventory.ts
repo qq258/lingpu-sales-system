@@ -2,7 +2,7 @@ import request from './request'
 
 export async function getInventory(params?: {
   storeId?: number
-  skuId?: number
+  modelId?: number
   keyword?: string
   page?: number
   pageSize?: number
@@ -30,7 +30,7 @@ export async function getInventoryImeiList(params?: {
 
 export async function getInventoryLogs(params?: {
   storeId?: number
-  skuId?: number
+  modelId?: number
   changeType?: string
   page?: number
   pageSize?: number
@@ -39,12 +39,12 @@ export async function getInventoryLogs(params?: {
   return res.data
 }
 
-export async function initialEntry(data: { sku_id: number; quantity: number; store_id?: number }): Promise<any> {
+export async function initialEntry(data: { model_id: number; quantity: number; store_id?: number }): Promise<any> {
   const res: any = await request.post('/inventory/initial', data)
   return res.data
 }
 
-export async function batchInitialEntry(data: { items: Array<{ sku_id: number; quantity: number }>; store_id?: number }): Promise<any> {
+export async function batchInitialEntry(data: { items: Array<{ model_id: number; quantity: number }>; store_id?: number }): Promise<any> {
   const res: any = await request.post('/inventory/initial/batch', data)
   return res.data
 }
@@ -65,7 +65,7 @@ export async function getInventoryChecks(params?: {
 
 export async function createInventoryCheck(data: {
   storeId: number
-  items: Array<{ skuId: number; actualQuantity: number }>
+  items: Array<{ modelId: number; expectedQty: number; actualQty: number }>
   remark?: string
 }): Promise<any> {
   const res: any = await request.post('/inventory/checks', data)

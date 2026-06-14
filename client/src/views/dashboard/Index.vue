@@ -61,7 +61,7 @@
           <div class="pbm-table-wrapper">
             <el-table :data="dashboardData?.topProducts || []" size="small" max-height="300" element-loading-background="rgba(245,240,235,0.8)">
               <el-table-column type="index" label="排名" width="60" />
-              <el-table-column prop="skuName" label="商品" />
+              <el-table-column prop="modelName" label="商品" />
               <el-table-column prop="quantity" label="销量" width="80" />
               <el-table-column prop="amount" label="金额" width="100">
                 <template #default="{ row }">

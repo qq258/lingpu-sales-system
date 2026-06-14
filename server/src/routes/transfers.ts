@@ -4,7 +4,6 @@ import { ApiResponse } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { storeScopeMiddleware } from '../middleware/store-scope';
 import { generateOrderNo } from '../utils/order-no';
-import { getSkuInfo } from '../utils/sku-info';
 
 const router = Router();
 
@@ -13,14 +12,14 @@ router.use(storeScopeMiddleware);
 
 router.post('/transfers', async (req: Request, res: Response) => {
   try {
-    const { to_store_id, sku_id, quantity, remark } = req.body;
+    const { to_store_id, items, remark } = req.body;
     const fromStoreId = (req as any).effectiveStoreId;
     if (!fromStoreId) {
       const r: ApiResponse = { code: 400, message: '无法确定来源门店' };
       return res.status(400).json(r);
     }
-    if (!to_store_id || !sku_id || !quantity) {
-      const r: ApiResponse = { code: 400, message: '目标门店、SKU和数量不能为空' };
+    if (!to_store_id || !items || !Array.isArray(items) || items.length === 0) {
+      const r: ApiResponse = { code: 400, message: '目标门店和调货商品不能为空' };
       return res.status(400).json(r);
     }
     if (fromStoreId === to_store_id) {
@@ -31,25 +30,31 @@ router.post('/transfers', async (req: Request, res: Response) => {
     const store = await prisma.sys_store.findUnique({ where: { id: fromStoreId } });
     const transferNo = await generateOrderNo('TF', store!.code);
 
-    const transfer = await prisma.wh_transfer.create({
-      data: {
-        transfer_no: transferNo,
-        from_store_id: fromStoreId,
-        to_store_id,
-        sku_id,
-        quantity,
-        applicant_id: req.user!.userId,
-        remark,
-      },
-      include: {
-        from_store: { select: { id: true, name: true } },
-        to_store: { select: { id: true, name: true } },
-        sku: { select: { id: true, sku_code: true, color: true, ram: true, rom: true } },
-        applicant: { select: { id: true, real_name: true } },
-      },
-    });
+    // Create one transfer record per item
+    const createdTransfers = [];
+    for (const item of items) {
+      const { model_id, quantity } = item;
+      const transfer = await prisma.wh_transfer.create({
+        data: {
+          transfer_no: `${transferNo}-${createdTransfers.length + 1}`,
+          from_store_id: fromStoreId,
+          to_store_id,
+          model_id,
+          quantity,
+          applicant_id: req.user!.userId,
+          remark,
+        },
+        include: {
+          from_store: { select: { id: true, name: true } },
+          to_store: { select: { id: true, name: true } },
+          model: { select: { id: true, name: true, color: true, ram: true, rom: true } },
+          applicant: { select: { id: true, real_name: true } },
+        },
+      });
+      createdTransfers.push(transfer);
+    }
 
-    const r: ApiResponse = { code: 200, message: '调货申请已提交', data: transfer };
+    const r: ApiResponse = { code: 200, message: '调货申请已提交', data: createdTransfers };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };
@@ -84,7 +89,7 @@ router.get('/transfers', async (req: Request, res: Response) => {
         include: {
           from_store: { select: { id: true, name: true } },
           to_store: { select: { id: true, name: true } },
-          sku: { select: { id: true, sku_code: true, color: true, ram: true, rom: true } },
+          model: { select: { id: true, name: true, color: true, ram: true, rom: true } },
           applicant: { select: { id: true, real_name: true } },
           outbound_operator: { select: { id: true, real_name: true } },
           inbound_operator: { select: { id: true, real_name: true } },
@@ -113,7 +118,7 @@ router.get('/transfers/:id', async (req: Request, res: Response) => {
       include: {
         from_store: { select: { id: true, name: true } },
         to_store: { select: { id: true, name: true } },
-        sku: { include: { model: { include: { brand: { select: { id: true, name: true } } } } } },
+        model: { include: { brand: { select: { id: true, name: true } } } },
         applicant: { select: { id: true, real_name: true } },
         outbound_operator: { select: { id: true, real_name: true } },
         inbound_operator: { select: { id: true, real_name: true } },
@@ -147,7 +152,7 @@ router.put('/transfers/:id/outbound', async (req: Request, res: Response) => {
 
     await prisma.$transaction(async (tx) => {
       const inventory = await tx.wh_inventory.findUnique({
-        where: { sku_id_store_id: { sku_id: transfer.sku_id, store_id: transfer.from_store_id } },
+        where: { model_id_store_id: { model_id: transfer.model_id, store_id: transfer.from_store_id } },
       });
 
       if (!inventory || inventory.quantity < transfer.quantity) {
@@ -161,7 +166,7 @@ router.put('/transfers/:id/outbound', async (req: Request, res: Response) => {
 
       await tx.wh_inventory_log.create({
         data: {
-          sku_id: transfer.sku_id,
+          model_id: transfer.model_id,
           store_id: transfer.from_store_id,
           change_type: 'transfer_out',
           qty_before: inventory.quantity,
@@ -207,9 +212,13 @@ router.put('/transfers/:id/inbound', async (req: Request, res: Response) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      const skuInfo = await getSkuInfo(transfer.sku_id);
+      const model = await tx.pdt_model.findUnique({
+        where: { id: transfer.model_id },
+        include: { brand: { select: { name: true } } },
+      });
+
       const inventory = await tx.wh_inventory.findUnique({
-        where: { sku_id_store_id: { sku_id: transfer.sku_id, store_id: transfer.to_store_id } },
+        where: { model_id_store_id: { model_id: transfer.model_id, store_id: transfer.to_store_id } },
       });
 
       if (inventory) {
@@ -217,33 +226,31 @@ router.put('/transfers/:id/inbound', async (req: Request, res: Response) => {
           where: { id: inventory.id },
           data: {
             quantity: inventory.quantity + transfer.quantity,
-            brand_name: skuInfo?.brand_name || inventory.brand_name,
-            model_name: skuInfo?.model_name || inventory.model_name,
-            sku_code: skuInfo?.sku_code || inventory.sku_code,
-            color: skuInfo?.color || inventory.color,
-            storage: skuInfo?.storage || inventory.storage,
-            cost_price: skuInfo?.cost_price || inventory.cost_price,
-            sale_price: skuInfo?.sale_price || inventory.sale_price || 0,
+            brand_name: model?.brand?.name || inventory.brand_name,
+            model_name: model?.name || inventory.model_name,
+            color: model?.color || inventory.color,
+            storage: [model?.ram, model?.rom].filter(Boolean).join('/') || inventory.storage,
+            cost_price: model?.cost_price || inventory.cost_price,
+            sale_price: model?.sale_price || inventory.sale_price || 0,
           },
         });
       } else {
         await tx.wh_inventory.create({
           data: {
-            sku_id: transfer.sku_id, store_id: transfer.to_store_id, quantity: transfer.quantity,
-            brand_name: skuInfo?.brand_name || '',
-            model_name: skuInfo?.model_name || '',
-            sku_code: skuInfo?.sku_code || '',
-            color: skuInfo?.color || '',
-            storage: skuInfo?.storage || '',
-            cost_price: skuInfo?.cost_price || 0,
-            sale_price: skuInfo?.sale_price || 0,
+            model_id: transfer.model_id, store_id: transfer.to_store_id, quantity: transfer.quantity,
+            brand_name: model?.brand?.name || '',
+            model_name: model?.name || '',
+            color: model?.color || '',
+            storage: [model?.ram, model?.rom].filter(Boolean).join('/') || '',
+            cost_price: model?.cost_price || 0,
+            sale_price: model?.sale_price || 0,
           },
         });
       }
 
       await tx.wh_inventory_log.create({
         data: {
-          sku_id: transfer.sku_id,
+          model_id: transfer.model_id,
           store_id: transfer.to_store_id,
           change_type: 'transfer_in',
           qty_before: inventory?.quantity || 0,
@@ -290,9 +297,13 @@ router.put('/transfers/:id/cancel', async (req: Request, res: Response) => {
 
     if (transfer.status === 'outbound') {
       await prisma.$transaction(async (tx) => {
-        const skuInfo = await getSkuInfo(transfer.sku_id);
+        const model = await tx.pdt_model.findUnique({
+          where: { id: transfer.model_id },
+          include: { brand: { select: { name: true } } },
+        });
+
         const inventory = await tx.wh_inventory.findUnique({
-          where: { sku_id_store_id: { sku_id: transfer.sku_id, store_id: transfer.from_store_id } },
+          where: { model_id_store_id: { model_id: transfer.model_id, store_id: transfer.from_store_id } },
         });
 
         if (inventory) {
@@ -300,33 +311,31 @@ router.put('/transfers/:id/cancel', async (req: Request, res: Response) => {
             where: { id: inventory.id },
             data: {
               quantity: inventory.quantity + transfer.quantity,
-              brand_name: skuInfo?.brand_name || inventory.brand_name,
-              model_name: skuInfo?.model_name || inventory.model_name,
-              sku_code: skuInfo?.sku_code || inventory.sku_code,
-              color: skuInfo?.color || inventory.color,
-              storage: skuInfo?.storage || inventory.storage,
-              cost_price: skuInfo?.cost_price || inventory.cost_price,
-              sale_price: skuInfo?.sale_price || inventory.sale_price || 0,
+              brand_name: model?.brand?.name || inventory.brand_name,
+              model_name: model?.name || inventory.model_name,
+              color: model?.color || inventory.color,
+              storage: [model?.ram, model?.rom].filter(Boolean).join('/') || inventory.storage,
+              cost_price: model?.cost_price || inventory.cost_price,
+              sale_price: model?.sale_price || inventory.sale_price || 0,
             },
           });
         } else {
           await tx.wh_inventory.create({
             data: {
-              sku_id: transfer.sku_id, store_id: transfer.from_store_id, quantity: transfer.quantity,
-              brand_name: skuInfo?.brand_name || '',
-              model_name: skuInfo?.model_name || '',
-              sku_code: skuInfo?.sku_code || '',
-              color: skuInfo?.color || '',
-              storage: skuInfo?.storage || '',
-              cost_price: skuInfo?.cost_price || 0,
-              sale_price: skuInfo?.sale_price || 0,
+              model_id: transfer.model_id, store_id: transfer.from_store_id, quantity: transfer.quantity,
+              brand_name: model?.brand?.name || '',
+              model_name: model?.name || '',
+              color: model?.color || '',
+              storage: [model?.ram, model?.rom].filter(Boolean).join('/') || '',
+              cost_price: model?.cost_price || 0,
+              sale_price: model?.sale_price || 0,
             },
           });
         }
 
         await tx.wh_inventory_log.create({
           data: {
-            sku_id: transfer.sku_id,
+            model_id: transfer.model_id,
             store_id: transfer.from_store_id,
             change_type: 'transfer_cancel',
             qty_before: inventory?.quantity || 0,

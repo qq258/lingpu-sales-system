@@ -10,16 +10,32 @@ export interface SupplierData {
 
 export async function getSuppliers(): Promise<SupplierData[]> {
   const res: any = await request.get('/purchase/suppliers')
-  return res.data || []
+  return (res.data || []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    contact: s.contact_person || '',
+    phone: s.phone || '',
+    address: s.address || '',
+  }))
 }
 
 export async function createSupplier(data: SupplierData): Promise<SupplierData> {
-  const res: any = await request.post('/purchase/suppliers', data)
+  const res: any = await request.post('/purchase/suppliers', {
+    name: data.name,
+    contact_person: data.contact,
+    phone: data.phone,
+    address: data.address,
+  })
   return res.data
 }
 
 export async function updateSupplier(id: number, data: SupplierData): Promise<SupplierData> {
-  const res: any = await request.put(`/purchase/suppliers/${id}`, data)
+  const res: any = await request.put(`/purchase/suppliers/${id}`, {
+    name: data.name,
+    contact_person: data.contact,
+    phone: data.phone,
+    address: data.address,
+  })
   return res.data
 }
 
@@ -64,11 +80,11 @@ export async function getPurchaseEntry(id: number): Promise<any> {
     createdAt: item.created_at,
     items: (item.items || []).map((i: any) => ({
       ...i,
-      brandName: i.sku?.model?.brand?.name,
-      modelName: i.sku?.model?.name,
-      color: i.sku?.color,
-      storage: `${i.sku?.ram || ''}${i.sku?.ram && i.sku?.rom ? '/' : ''}${i.sku?.rom || ''}`,
-      barcode: i.sku?.manufacturer_barcode,
+      brandName: i.model?.brand?.name,
+      modelName: i.model?.name,
+      color: i.model?.color,
+      storage: `${i.model?.ram || ''}${i.model?.ram && i.model?.rom ? '/' : ''}${i.model?.rom || ''}`,
+      barcode: i.model?.manufacturer_barcode,
       costPrice: i.unit_price,
     })),
   }
@@ -87,18 +103,18 @@ export async function createPurchaseEntry(data: {
   return res.data
 }
 
-export async function addPurchaseItem(entryId: number, data: { skuId: number; imei: string; unitPrice: number }): Promise<any> {
+export async function addPurchaseItem(entryId: number, data: { modelId: number; imei: string; unitPrice: number }): Promise<any> {
   const res: any = await request.post(`/purchase/purchase-entries/${entryId}/add-item`, {
-    sku_id: data.skuId,
+    model_id: data.modelId,
     imei: data.imei,
     unit_price: data.unitPrice,
   })
   return res.data
 }
 
-export async function batchAddPurchaseImei(entryId: number, data: { skuId: number; imeiList: string[]; unitPrice: number }): Promise<any> {
+export async function batchAddPurchaseImei(entryId: number, data: { modelId: number; imeiList: string[]; unitPrice: number }): Promise<any> {
   const res: any = await request.post(`/purchase/purchase-entries/${entryId}/imei/batch`, {
-    sku_id: data.skuId,
+    model_id: data.modelId,
     imei_list: data.imeiList,
     unit_price: data.unitPrice,
   })
@@ -119,14 +135,14 @@ export async function quickConfirmPurchaseEntry(data: {
   supplierId?: number | null
   remark?: string
   storeId?: number
-  items: Array<{ skuId: number; imei: string; unitPrice: number }>
+  items: Array<{ modelId: number; imei: string; unitPrice: number }>
 }): Promise<any> {
   const res: any = await request.post('/purchase/purchase-entries/quick-confirm', {
     supplier_id: data.supplierId,
     remark: data.remark,
     store_id: data.storeId,
     items: data.items.map(i => ({
-      sku_id: i.skuId,
+      model_id: i.modelId,
       imei: i.imei,
       unit_price: i.unitPrice,
     })),

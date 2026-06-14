@@ -30,7 +30,7 @@
       <div class="receipt-items">
         <div v-for="(item, idx) in data?.items" :key="idx" class="receipt-item">
           <div class="item-header">
-            <span class="item-name">{{ item.skuName }}</span>
+            <span class="item-name">{{ item.modelName }}</span>
             <span class="item-price">¥{{ item.price.toFixed(2) }}</span>
           </div>
           <div class="item-barcode-wrap">
@@ -86,7 +86,7 @@ const props = defineProps<{
     paidAmount: number
     changeAmount?: number
     remark?: string
-    items: Array<{ skuId: number; skuName: string; imei: string; quantity: number; price: number }>
+    items: Array<{ modelId: number; modelName: string; imei: string; quantity: number; price: number }>
   } | null
   storeName?: string
   storePhone?: string
@@ -223,7 +223,7 @@ function handlePrint() {
   const itemsHtml = (props.data?.items || []).map((item, idx) => `
     <div class="receipt-item">
       <div class="item-header">
-        <span class="item-name">${item.skuName}</span>
+        <span class="item-name">${item.modelName}</span>
         <span class="item-price">¥${item.price.toFixed(2)}</span>
       </div>
       <div class="item-barcode-wrap">

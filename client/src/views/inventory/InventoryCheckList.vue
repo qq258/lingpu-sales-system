@@ -79,11 +79,17 @@
       </el-form>
 
       <div style="margin-bottom:12px;">
-        <div class="pbm-dialog-search">
-          <div class="pbm-search-input-wrapper">
-            <svg class="pbm-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input v-model="skuSearchKeyword" class="pbm-search-input" placeholder="搜索 SKU" />
-          </div>
+        <div class="pbm-dialog-search" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <el-select v-model="searchBrandId" placeholder="选择品牌" clearable filterable size="small" @change="onBrandChange" style="width:150px;">
+            <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
+          </el-select>
+          <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable size="small" style="width:250px;" :disabled="!searchBrandId">
+            <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.ram || ''}/${m.rom || ''}`" :value="m.id" />
+          </el-select>
+          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!searchModelId" @click="addCheckModel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>添加</span>
+          </button>
         </div>
       </div>
 
@@ -115,9 +121,18 @@
         </el-table>
       </div>
 
-      <div style="margin-top:12px;">
-        <SkuSelector mode="purchase" :auto-focus="false" @select="addCheckSku" />
-      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <el-select v-model="searchBrandId" placeholder="选择品牌" clearable filterable size="small" @change="onBrandChange" style="width:150px;">
+            <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
+          </el-select>
+          <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable size="small" style="width:250px;" :disabled="!searchBrandId">
+            <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.ram || ''}/${m.rom || ''}`" :value="m.id" />
+          </el-select>
+          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!searchModelId" @click="addCheckModel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>添加</span>
+          </button>
+        </div>
 
       <template #footer>
         <button class="pbm-btn-plain" @click="newDialogVisible = false">取消</button>
@@ -169,7 +184,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getInventoryChecks, createInventoryCheck, auditInventoryCheck } from '@/api/inventory'
-import SkuSelector from '@/components/SkuSelector.vue'
+import { getBrands, getModels } from '@/api/product'
+import { getInventoryByModel } from '@/api/inventory'
 
 const userStore = useUserStore()
 
@@ -182,13 +198,17 @@ const pageSize = ref(20)
 const newDialogVisible = ref(false)
 const newFormRef = ref<FormInstance>()
 const submitLoading = ref(false)
-const skuSearchKeyword = ref('')
+
+const brands = ref<any[]>([])
+const models = ref<any[]>([])
+const searchBrandId = ref<number | undefined>()
+const searchModelId = ref<number | undefined>()
 
 const newForm = ref<{
   storeId: number | null
   remark: string
   items: Array<{
-    skuId: number
+    modelId: number
     brandName: string
     modelName: string
     color: string
@@ -228,17 +248,27 @@ function openNewDialog() {
   newDialogVisible.value = true
 }
 
-function addCheckSku(sku: any) {
-  const existing = newForm.value.items.find(i => i.skuId === sku.id)
+function addCheckModel() {
+  if (!searchModelId.value) return
+  const model = models.value.find(m => m.id === searchModelId.value)
+  if (!model) return
+
+  const existing = newForm.value.items.find(i => i.modelId === model.id)
   if (!existing) {
+    let stock = 0
+    try {
+      getInventoryByModel(model.id, newForm.value.storeId || undefined).then(result => {
+        stock = result[0]?.stock || 0
+      })
+    } catch {}
     newForm.value.items.push({
-      skuId: sku.id,
-      brandName: sku.brandName || '',
-      modelName: sku.modelName || '',
-      color: sku.color || '',
-      storage: sku.storage || '',
-      systemQuantity: sku.stock || 0,
-      actualQuantity: sku.stock || 0,
+      modelId: model.id,
+      brandName: model.brandName || '',
+      modelName: model.name,
+      color: model.color || '',
+      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+      systemQuantity: stock,
+      actualQuantity: stock,
     })
   }
 }
@@ -255,7 +285,7 @@ async function handleCreateCheck() {
   try {
     await createInventoryCheck({
       storeId: newForm.value.storeId!,
-      items: newForm.value.items.map(i => ({ skuId: i.skuId, actualQuantity: i.actualQuantity })),
+      items: newForm.value.items.map(i => ({ modelId: i.modelId, expectedQty: i.systemQuantity, actualQty: i.actualQuantity })),
       remark: newForm.value.remark,
     })
     ElMessage.success('盘点单创建成功')
@@ -288,8 +318,11 @@ async function handleAudit(row: any) {
   }
 }
 
-onMounted(() => {
-  loadChecks()
+onMounted(async () => {
+  await loadChecks()
+  try {
+    brands.value = await getBrands()
+  } catch {}
 })
 </script>
 

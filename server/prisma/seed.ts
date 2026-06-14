@@ -97,87 +97,32 @@ async function main() {
 
   console.log('品牌创建完成');
 
-  // 创建型号和SKU
-  const modelData = [
-    {
-      brandName: 'Apple',
-      name: 'iPhone 15 Pro Max',
-      launch_year: 2023,
-      os_type: 'iOS',
-      network_type: '5G',
-      screen_size: '6.7英寸',
-      cpu: 'A17 Pro',
-      battery: '4422mAh',
-      skus: [
-        { sku_code: 'IP15PM-BK-256', color: '黑色', ram: '8GB', rom: '256GB', sale_price: 9999, cost_price: 8500 },
-        { sku_code: 'IP15PM-WH-256', color: '白色', ram: '8GB', rom: '256GB', sale_price: 9999, cost_price: 8500 },
-        { sku_code: 'IP15PM-BK-512', color: '黑色', ram: '8GB', rom: '512GB', sale_price: 11999, cost_price: 10200 },
-      ],
-    },
-    {
-      brandName: 'Apple',
-      name: 'iPhone 15',
-      launch_year: 2023,
-      os_type: 'iOS',
-      network_type: '5G',
-      screen_size: '6.1英寸',
-      cpu: 'A16 Bionic',
-      battery: '3349mAh',
-      skus: [
-        { sku_code: 'IP15-BK-128', color: '黑色', ram: '6GB', rom: '128GB', sale_price: 5999, cost_price: 5100 },
-        { sku_code: 'IP15-BL-128', color: '蓝色', ram: '6GB', rom: '128GB', sale_price: 5999, cost_price: 5100 },
-      ],
-    },
-    {
-      brandName: 'Samsung',
-      name: 'Galaxy S24 Ultra',
-      launch_year: 2024,
-      os_type: 'Android',
-      network_type: '5G',
-      screen_size: '6.8英寸',
-      cpu: 'Snapdragon 8 Gen 3',
-      battery: '5000mAh',
-      skus: [
-        { sku_code: 'S24U-GY-256', color: '灰色', ram: '12GB', rom: '256GB', sale_price: 9699, cost_price: 8200 },
-        { sku_code: 'S24U-BK-256', color: '黑色', ram: '12GB', rom: '256GB', sale_price: 9699, cost_price: 8200 },
-      ],
-    },
-    {
-      brandName: 'Xiaomi',
-      name: '小米14 Ultra',
-      launch_year: 2024,
-      os_type: 'Android',
-      network_type: '5G',
-      screen_size: '6.73英寸',
-      cpu: 'Snapdragon 8 Gen 3',
-      battery: '5300mAh',
-      skus: [
-        { sku_code: 'MI14U-BK-256', color: '黑色', ram: '12GB', rom: '256GB', sale_price: 5999, cost_price: 5100 },
-        { sku_code: 'MI14U-WH-256', color: '白色', ram: '12GB', rom: '256GB', sale_price: 5999, cost_price: 5100 },
-      ],
-    },
-    {
-      brandName: 'Huawei',
-      name: 'Mate 60 Pro',
-      launch_year: 2023,
-      os_type: 'HarmonyOS',
-      network_type: '5G',
-      screen_size: '6.82英寸',
-      cpu: 'Kirin 9000S',
-      battery: '5000mAh',
-      skus: [
-        { sku_code: 'M60P-BK-256', color: '黑色', ram: '12GB', rom: '256GB', sale_price: 6999, cost_price: 5900 },
-        { sku_code: 'M60P-GR-256', color: '绿色', ram: '12GB', rom: '256GB', sale_price: 6999, cost_price: 5900 },
-      ],
-    },
+  // 创建型号（每个 variant 为一条 model 记录）
+  const modelsData = [
+    { brandName: 'Apple', name: 'iPhone 15 Pro Max', color: '黑色', ram: '8GB', rom: '256GB', sale_price: 9999, cost_price: 8500, launch_year: 2023, os_type: 'iOS', network_type: '5G', screen_size: '6.7英寸', cpu: 'A17 Pro', battery: '4422mAh' },
+    { brandName: 'Apple', name: 'iPhone 15 Pro Max', color: '白色', ram: '8GB', rom: '256GB', sale_price: 9999, cost_price: 8500, launch_year: 2023, os_type: 'iOS', network_type: '5G', screen_size: '6.7英寸', cpu: 'A17 Pro', battery: '4422mAh' },
+    { brandName: 'Apple', name: 'iPhone 15 Pro Max', color: '黑色', ram: '8GB', rom: '512GB', sale_price: 11999, cost_price: 10200, launch_year: 2023, os_type: 'iOS', network_type: '5G', screen_size: '6.7英寸', cpu: 'A17 Pro', battery: '4422mAh' },
+    { brandName: 'Apple', name: 'iPhone 15', color: '黑色', ram: '6GB', rom: '128GB', sale_price: 5999, cost_price: 5100, launch_year: 2023, os_type: 'iOS', network_type: '5G', screen_size: '6.1英寸', cpu: 'A16 Bionic', battery: '3349mAh' },
+    { brandName: 'Apple', name: 'iPhone 15', color: '蓝色', ram: '6GB', rom: '128GB', sale_price: 5999, cost_price: 5100, launch_year: 2023, os_type: 'iOS', network_type: '5G', screen_size: '6.1英寸', cpu: 'A16 Bionic', battery: '3349mAh' },
+    { brandName: 'Samsung', name: 'Galaxy S24 Ultra', color: '灰色', ram: '12GB', rom: '256GB', sale_price: 9699, cost_price: 8200, launch_year: 2024, os_type: 'Android', network_type: '5G', screen_size: '6.8英寸', cpu: 'Snapdragon 8 Gen 3', battery: '5000mAh' },
+    { brandName: 'Samsung', name: 'Galaxy S24 Ultra', color: '黑色', ram: '12GB', rom: '256GB', sale_price: 9699, cost_price: 8200, launch_year: 2024, os_type: 'Android', network_type: '5G', screen_size: '6.8英寸', cpu: 'Snapdragon 8 Gen 3', battery: '5000mAh' },
+    { brandName: 'Xiaomi', name: '小米14 Ultra', color: '黑色', ram: '12GB', rom: '256GB', sale_price: 5999, cost_price: 5100, launch_year: 2024, os_type: 'Android', network_type: '5G', screen_size: '6.73英寸', cpu: 'Snapdragon 8 Gen 3', battery: '5300mAh' },
+    { brandName: 'Xiaomi', name: '小米14 Ultra', color: '白色', ram: '12GB', rom: '256GB', sale_price: 5999, cost_price: 5100, launch_year: 2024, os_type: 'Android', network_type: '5G', screen_size: '6.73英寸', cpu: 'Snapdragon 8 Gen 3', battery: '5300mAh' },
+    { brandName: 'Huawei', name: 'Mate 60 Pro', color: '黑色', ram: '12GB', rom: '256GB', sale_price: 6999, cost_price: 5900, launch_year: 2023, os_type: 'HarmonyOS', network_type: '5G', screen_size: '6.82英寸', cpu: 'Kirin 9000S', battery: '5000mAh' },
+    { brandName: 'Huawei', name: 'Mate 60 Pro', color: '绿色', ram: '12GB', rom: '256GB', sale_price: 6999, cost_price: 5900, launch_year: 2023, os_type: 'HarmonyOS', network_type: '5G', screen_size: '6.82英寸', cpu: 'Kirin 9000S', battery: '5000mAh' },
   ];
 
-  for (const md of modelData) {
+  for (const md of modelsData) {
     const brand = brandRecords[md.brandName];
-    const model = await prisma.pdt_model.create({
+    await prisma.pdt_model.create({
       data: {
         brand_id: brand.id,
         name: md.name,
+        color: md.color,
+        ram: md.ram,
+        rom: md.rom,
+        sale_price: md.sale_price,
+        cost_price: md.cost_price,
         launch_year: md.launch_year,
         os_type: md.os_type,
         network_type: md.network_type,
@@ -186,23 +131,9 @@ async function main() {
         battery: md.battery,
       },
     });
-
-    for (const skuData of md.skus) {
-      await prisma.pdt_sku.create({
-        data: {
-          model_id: model.id,
-          sku_code: skuData.sku_code,
-          color: skuData.color,
-          ram: skuData.ram,
-          rom: skuData.rom,
-          sale_price: skuData.sale_price,
-          cost_price: skuData.cost_price,
-        },
-      });
-    }
   }
 
-  console.log('型号和SKU创建完成');
+  console.log('型号创建完成');
   console.log('种子数据填充完毕');
 }
 

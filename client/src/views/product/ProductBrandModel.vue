@@ -247,7 +247,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type ElTree from 'element-plus/es/components/tree'
-import { getBrands, getModels, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, scanBrandModel } from '@/api/product'
+import { getBrands, getModels, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, scanBarcode } from '@/api/product'
 import type { BrandData, ModelData } from '@/api/product'
 import { createScanner } from '@/utils/scanner'
 
@@ -483,7 +483,7 @@ async function handleScanBarcode() {
   const barcode = quickForm.value.barcode.trim()
   if (!barcode) return
   try {
-    const result = await scanBrandModel(barcode)
+    const result = await scanBarcode(barcode)
     quickForm.value.brandName = result.brandName
     quickForm.value.modelName = result.modelName
     scanResult.value = { found: true, brandName: result.brandName, modelName: result.modelName }

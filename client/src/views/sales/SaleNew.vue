@@ -149,7 +149,7 @@ const printReceiptRef = ref()
 const storeInfo = ref({ name: '', address: '', phone: '' })
 
 const cartItems = ref<Array<{
-  skuId: number
+  modelId: number
   imei: string
   brandName: string
   modelName: string
@@ -252,7 +252,7 @@ function addToCart() {
   }
 
   cartItems.value.push({
-    skuId: matchedItem.value.skuId,
+    modelId: matchedItem.value.modelId,
     imei: matchedItem.value.imei,
     brandName: matchedItem.value.brandName || '',
     modelName: matchedItem.value.modelName || '',
@@ -312,8 +312,8 @@ async function handleCheckout() {
       changeAmount: changeAmount.value,
       remark: settlement.value.remark || '',
       items: cartItems.value.map(i => ({
-        skuId: i.skuId,
-        skuName: `${i.brandName} ${i.modelName} - ${i.color}/${i.storage}`,
+        skuId: i.modelId,
+        modelName: `${i.brandName} ${i.modelName} - ${i.color}/${i.storage}`,
         imei: i.imei,
         quantity: 1,
         price: i.price,

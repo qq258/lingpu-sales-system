@@ -146,7 +146,7 @@ router.get('/purchase-entries/:id', async (req: Request, res: Response) => {
         supplier: { select: { id: true, name: true } },
         operator: { select: { id: true, real_name: true } },
         items: {
-          include: { sku: { include: { model: { include: { brand: { select: { id: true, name: true } } } } } } },
+          include: { model: { include: { brand: { select: { id: true, name: true } } } } },
         },
       },
     });
@@ -238,10 +238,10 @@ router.delete('/purchase-entries/:id', async (req: Request, res: Response) => {
 router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response) => {
   try {
     const entryId = parseInt(req.params.id);
-    const { sku_id, imei, unit_price } = req.body;
+    const { model_id, imei, unit_price } = req.body;
 
-    if (!sku_id || !imei) {
-      const r: ApiResponse = { code: 400, message: 'SKU和IMEI不能为空' };
+    if (!model_id || !imei) {
+      const r: ApiResponse = { code: 400, message: '型号和IMEI不能为空' };
       return res.status(400).json(r);
     }
 
@@ -255,22 +255,23 @@ router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response
       return res.status(400).json(r);
     }
 
-    // 校验 IMEI 全局唯一
-    const existingImei = await prisma.wh_inventory_imei.findUnique({ where: { imei } });
-    if (existingImei) {
-      const r: ApiResponse = { code: 409, message: `IMEI ${imei} 已存在于系统中` };
-      return res.status(409).json(r);
-    }
+    const item = await prisma.$transaction(async (tx) => {
+      // IMEI 唯一性检查在事务内执行，避免并发重复
+      const existingImei = await tx.wh_inventory_imei.findUnique({ where: { imei } });
+      if (existingImei) {
+        throw new Error(`IMEI ${imei} 已存在于系统中`);
+      }
 
-    const item = await prisma.pch_purchase_item.create({
-      data: {
-        entry_id: entryId,
-        sku_id,
-        imei,
-        unit_price: unit_price || 0,
-        subtotal: unit_price || 0,
-      },
-      include: { sku: { include: { model: { include: { brand: { select: { id: true, name: true } } } } } } },
+      return tx.pch_purchase_item.create({
+        data: {
+          entry_id: entryId,
+          model_id,
+          imei,
+          unit_price: unit_price || 0,
+          subtotal: unit_price || 0,
+        },
+        include: { model: { include: { brand: { select: { id: true, name: true } } } } },
+      });
     });
 
     const itemCount = await prisma.pch_purchase_item.count({ where: { entry_id: entryId } });
@@ -291,14 +292,14 @@ router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response
   }
 });
 
-// 批量粘贴 IMEI（同 SKU）
+// 批量粘贴 IMEI（同型号）
 router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Response) => {
   try {
     const entryId = parseInt(req.params.id);
-    const { sku_id, imei_list, unit_price } = req.body;
+    const { model_id, imei_list, unit_price } = req.body;
 
-    if (!sku_id || !imei_list || !Array.isArray(imei_list) || imei_list.length === 0) {
-      const r: ApiResponse = { code: 400, message: 'SKU和IMEI列表不能为空' };
+    if (!model_id || !imei_list || !Array.isArray(imei_list) || imei_list.length === 0) {
+      const r: ApiResponse = { code: 400, message: '型号和IMEI列表不能为空' };
       return res.status(400).json(r);
     }
 
@@ -312,32 +313,29 @@ router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Respon
       return res.status(400).json(r);
     }
 
-    // 批量校验 IMEI 是否已存在
-    const existingImeis = await prisma.wh_inventory_imei.findMany({
-      where: { imei: { in: imei_list } },
-      select: { imei: true },
-    });
-    const existingSet = new Set(existingImeis.map(i => i.imei));
+    const result = await prisma.$transaction(async (tx) => {
+      const successItems: any[] = [];
+      const failedItems: any[] = [];
 
-    const successItems: any[] = [];
-    const failedItems: any[] = [];
-
-    for (const imei of imei_list) {
-      if (existingSet.has(imei)) {
-        failedItems.push({ imei, reason: 'IMEI 已存在' });
-        continue;
+      for (const imei of imei_list) {
+        const existing = await tx.wh_inventory_imei.findUnique({ where: { imei } });
+        if (existing) {
+          failedItems.push({ imei, reason: 'IMEI 已存在' });
+          continue;
+        }
+        const item = await tx.pch_purchase_item.create({
+          data: {
+            entry_id: entryId,
+            model_id,
+            imei,
+            unit_price: unit_price || 0,
+            subtotal: unit_price || 0,
+          },
+        });
+        successItems.push(item);
       }
-      const item = await prisma.pch_purchase_item.create({
-        data: {
-          entry_id: entryId,
-          sku_id,
-          imei,
-          unit_price: unit_price || 0,
-          subtotal: unit_price || 0,
-        },
-      });
-      successItems.push(item);
-    }
+      return { successItems, failedItems };
+    });
 
     const itemCount = await prisma.pch_purchase_item.count({ where: { entry_id: entryId } });
     const totalAmountRes = await prisma.pch_purchase_item.aggregate({
@@ -354,9 +352,9 @@ router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Respon
       message: '批量添加完成',
       data: {
         entry_id: entryId,
-        success_count: successItems.length,
-        failed_count: failedItems.length,
-        failed_items: failedItems,
+        success_count: result.successItems.length,
+        failed_count: result.failedItems.length,
+        failed_items: result.failedItems,
         total_items: itemCount,
       },
     };
@@ -396,7 +394,7 @@ router.delete('/purchase-entries/:entryId/items/:itemId', async (req: Request, r
   }
 });
 
-// 快捷确认入库：创建入库单 + 保存所有items + 确认（一次完成）
+// 快捷确认入库
 router.post('/purchase-entries/quick-confirm', async (req: Request, res: Response) => {
   try {
     const { supplier_id, remark, items } = req.body;
@@ -414,7 +412,6 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
     const entryNo = await generateOrderNo('PO', store!.code);
 
     await prisma.$transaction(async (tx) => {
-      // ① 创建入库单
       const entry = await tx.pch_purchase_entry.create({
         data: {
           entry_no: entryNo,
@@ -428,11 +425,10 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
 
       let totalAmount = 0;
 
-      // ② 逐条创建入库明细并校验 IMEI
       for (const item of items) {
-        const { sku_id, imei, unit_price } = item;
-        if (!sku_id || !imei) {
-          throw new Error('SKU和IMEI不能为空');
+        const { model_id, imei, unit_price } = item;
+        if (!model_id || !imei) {
+          throw new Error('型号和IMEI不能为空');
         }
 
         const existing = await tx.wh_inventory_imei.findUnique({ where: { imei } });
@@ -446,17 +442,16 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
         await tx.pch_purchase_item.create({
           data: {
             entry_id: entry.id,
-            sku_id,
+            model_id,
             imei,
             unit_price: unit_price || 0,
             subtotal,
           },
         });
 
-        // ③ 写入 wh_inventory_imei
         await tx.wh_inventory_imei.create({
           data: {
-            sku_id,
+            model_id,
             store_id: storeId,
             imei,
             status: 'in_stock',
@@ -465,25 +460,23 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
         });
       }
 
-      // ④ 更新入库单状态和总金额
       await tx.pch_purchase_entry.update({
         where: { id: entry.id },
         data: { status: 'confirmed', total_amount: totalAmount },
       });
 
-      // ⑤ 按 SKU 分组更新库存汇总
-      const skuGroups: Record<number, typeof items> = {};
+      const modelGroups: Record<number, typeof items> = {};
       for (const item of items) {
-        if (!skuGroups[item.sku_id]) skuGroups[item.sku_id] = [];
-        skuGroups[item.sku_id].push(item);
+        if (!modelGroups[item.model_id]) modelGroups[item.model_id] = [];
+        modelGroups[item.model_id].push(item);
       }
 
-      for (const [skuIdStr, groupItems] of Object.entries(skuGroups)) {
-        const skuId = parseInt(skuIdStr);
+      for (const [modelIdStr, groupItems] of Object.entries(modelGroups)) {
+        const modelId = parseInt(modelIdStr);
         const count = groupItems.length;
 
         const inventory = await tx.wh_inventory.findUnique({
-          where: { sku_id_store_id: { sku_id: skuId, store_id: storeId } },
+          where: { model_id_store_id: { model_id: modelId, store_id: storeId } },
         });
 
         const qtyBefore = inventory?.quantity || 0;
@@ -495,14 +488,23 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
             data: { quantity: qtyAfter },
           });
         } else {
+          const model = await tx.pdt_model.findUnique({ where: { id: modelId }, include: { brand: { select: { name: true } } } });
           await tx.wh_inventory.create({
-            data: { sku_id: skuId, store_id: storeId, quantity: count },
+            data: {
+              model_id: modelId, store_id: storeId, quantity: count,
+              brand_name: model?.brand?.name || '',
+              model_name: model?.name || '',
+              color: model?.color || '',
+              storage: [model?.ram, model?.rom].filter(Boolean).join('/') || '',
+              cost_price: model?.cost_price || 0,
+              sale_price: model?.sale_price || 0,
+            },
           });
         }
 
         await tx.wh_inventory_log.create({
           data: {
-            sku_id: skuId,
+            model_id: modelId,
             store_id: storeId,
             change_type: 'purchase_in',
             qty_before: qtyBefore,
@@ -525,7 +527,7 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
   }
 });
 
-// 确认入库：校验IMEI → 写入 wh_inventory_imei → 更新库存
+// 确认入库
 router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
@@ -548,7 +550,6 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
     }
 
     await prisma.$transaction(async (tx) => {
-      // ① 逐条校验 IMEI 唯一性并写入 wh_inventory_imei
       for (const item of entry.items) {
         const existing = await tx.wh_inventory_imei.findUnique({ where: { imei: item.imei } });
         if (existing) {
@@ -557,7 +558,7 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
 
         await tx.wh_inventory_imei.create({
           data: {
-            sku_id: item.sku_id,
+            model_id: item.model_id,
             store_id: entry.store_id,
             imei: item.imei,
             status: 'in_stock',
@@ -566,26 +567,24 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
         });
       }
 
-      // ② 更新入库单状态和总金额
       const totalAmount = entry.items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
       await tx.pch_purchase_entry.update({
         where: { id },
         data: { status: 'confirmed', total_amount: totalAmount },
       });
 
-      // ③ 按 SKU 分组更新库存汇总
-      const skuGroups: Record<number, typeof entry.items> = {};
+      const modelGroups: Record<number, typeof entry.items> = {};
       for (const item of entry.items) {
-        if (!skuGroups[item.sku_id]) skuGroups[item.sku_id] = [];
-        skuGroups[item.sku_id].push(item);
+        if (!modelGroups[item.model_id]) modelGroups[item.model_id] = [];
+        modelGroups[item.model_id].push(item);
       }
 
-      for (const [skuIdStr, groupItems] of Object.entries(skuGroups)) {
-        const skuId = parseInt(skuIdStr);
+      for (const [modelIdStr, groupItems] of Object.entries(modelGroups)) {
+        const modelId = parseInt(modelIdStr);
         const count = groupItems.length;
 
         const inventory = await tx.wh_inventory.findUnique({
-          where: { sku_id_store_id: { sku_id: skuId, store_id: entry.store_id } },
+          where: { model_id_store_id: { model_id: modelId, store_id: entry.store_id } },
         });
 
         const qtyBefore = inventory?.quantity || 0;
@@ -597,15 +596,23 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
             data: { quantity: qtyAfter },
           });
         } else {
+          const model = await tx.pdt_model.findUnique({ where: { id: modelId }, include: { brand: { select: { name: true } } } });
           await tx.wh_inventory.create({
-            data: { sku_id: skuId, store_id: entry.store_id, quantity: count },
+            data: {
+              model_id: modelId, store_id: entry.store_id, quantity: count,
+              brand_name: model?.brand?.name || '',
+              model_name: model?.name || '',
+              color: model?.color || '',
+              storage: [model?.ram, model?.rom].filter(Boolean).join('/') || '',
+              cost_price: model?.cost_price || 0,
+              sale_price: model?.sale_price || 0,
+            },
           });
         }
 
-        // ④ 写入库存流水
         await tx.wh_inventory_log.create({
           data: {
-            sku_id: skuId,
+            model_id: modelId,
             store_id: entry.store_id,
             change_type: 'purchase_in',
             qty_before: qtyBefore,
@@ -620,7 +627,7 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
       }
     });
 
-    const r: ApiResponse = { code: 200, message: '确认入库成功' };
+    const r: ApiResponse = { code: 200, message: '确认成功' };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };

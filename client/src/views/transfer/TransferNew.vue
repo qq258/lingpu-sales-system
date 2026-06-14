@@ -32,7 +32,18 @@
 
       <div class="pbm-section-card">
         <h3 class="pbm-section-card-title">选择调货商品</h3>
-        <SkuSelector mode="sale" @select="addSku" />
+        <div class="manual-search">
+          <el-select v-model="searchBrandId" placeholder="选择品牌" clearable filterable @change="onBrandChange" style="width: 150px;">
+            <el-option v-for="brand in brands" :key="brand.id" :label="brand.name" :value="brand.id" />
+          </el-select>
+          <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable style="width: 250px;" :disabled="!searchBrandId">
+            <el-option v-for="model in models" :key="model.id" :label="`${model.name} - ${model.color || ''}/${model.ram || ''}/${model.rom || ''}`" :value="model.id" />
+          </el-select>
+          <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!searchModelId" @click="addSelectedModel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>添加</span>
+          </button>
+        </div>
 
         <div class="pbm-table-wrapper">
           <el-table :data="items" border stripe max-height="400" element-loading-background="rgba(245,240,235,0.8)">
@@ -71,7 +82,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <div v-if="items.length === 0" class="pbm-table-empty">请扫码或搜索添加调货商品</div>
+        <div v-if="items.length === 0" class="pbm-table-empty">请选择品牌和型号添加调货商品</div>
       </div>
 
       <div class="pbm-form-actions">
@@ -90,17 +101,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { createTransfer } from '@/api/transfer'
-import SkuSelector from '@/components/SkuSelector.vue'
+import { getBrands, getModels } from '@/api/product'
+import { getInventoryByModel } from '@/api/inventory'
 
 const userStore = useUserStore()
 
 const form = ref({ toStoreId: null as number | null, remark: '' })
 const items = ref<Array<{
-  skuId: number
+  modelId: number
   brandName: string
   modelName: string
   color: string
@@ -110,23 +122,57 @@ const items = ref<Array<{
 }>>([])
 const submitLoading = ref(false)
 
+const brands = ref<any[]>([])
+const models = ref<any[]>([])
+const searchBrandId = ref<number | undefined>()
+const searchModelId = ref<number | undefined>()
+
 const availableTargetStores = computed(() => {
   return userStore.availableStores.filter(s => s.id !== userStore.effectiveStoreId)
 })
 
-function addSku(sku: any) {
-  const existing = items.value.find(i => i.skuId === sku.id)
+onMounted(async () => {
+  try {
+    brands.value = await getBrands()
+  } catch {}
+})
+
+async function onBrandChange() {
+  searchModelId.value = undefined
+  if (searchBrandId.value) {
+    try {
+      models.value = await getModels(searchBrandId.value)
+    } catch {
+      models.value = []
+    }
+  } else {
+    models.value = []
+  }
+}
+
+async function addSelectedModel() {
+  if (!searchModelId.value) return
+  const model = models.value.find(m => m.id === searchModelId.value)
+  if (!model) return
+
+  let stock = 0
+  try {
+    const result = await getInventoryByModel(model.id, userStore.effectiveStoreId || undefined)
+    stock = result[0]?.stock || 0
+  } catch {}
+
+  const existing = items.value.find(i => i.modelId === model.id)
   if (existing) {
     existing.quantity += 1
     ElMessage.info('已增加数量')
   } else {
     items.value.push({
-      skuId: sku.id,
-      brandName: sku.brandName || '',
-      modelName: sku.modelName || '',
-      color: sku.color || '',
-      storage: sku.storage || '',
-      stock: sku.stock ?? 0,
+      modelId: model.id,
+      brandName: model.brandName || '',
+      modelName: model.name,
+      color: model.color || '',
+      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+      stock,
       quantity: 1,
     })
     ElMessage.success('已添加商品')
@@ -151,7 +197,7 @@ async function handleSubmit() {
   try {
     await createTransfer({
       toStoreId: form.value.toStoreId,
-      items: items.value.map(i => ({ skuId: i.skuId, quantity: i.quantity })),
+      items: items.value.map(i => ({ modelId: i.modelId, quantity: i.quantity })),
       remark: form.value.remark,
     })
     ElMessage.success('调货申请已提交')
@@ -198,145 +244,4 @@ function resetForm() {
   font-family: var(--pbm-font);
   background: var(--pbm-bg);
 }
-
-.pbm-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--pbm-border);
-}
-.pbm-header-left { display: flex; align-items: baseline; gap: 12px; }
-.pbm-title { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: var(--pbm-text); margin: 0; }
-.pbm-subtitle { font-size: 12px; color: var(--pbm-text-dim); letter-spacing: 0.4px; text-transform: uppercase; font-family: var(--pbm-mono); }
-
-.pbm-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px 24px 24px;
-  gap: 16px;
-}
-
-.pbm-section-card {
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-  padding: 20px;
-  margin-bottom: 0;
-}
-.pbm-section-card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--pbm-text);
-  margin: 0 0 16px;
-}
-.pbm-table-empty {
-  text-align: center;
-  padding: 20px;
-  color: var(--pbm-text-dim);
-  font-size: 13px;
-}
-
-.pbm-btn-accent {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  background: var(--pbm-accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--pbm-radius);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.pbm-btn-accent:hover { background: #dba84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,149,60,0.3); }
-.pbm-btn-accent:active { transform: translateY(0); }
-.pbm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-
-.pbm-btn-plain {
-  padding: 8px 20px;
-  background: transparent;
-  color: var(--pbm-text-dim);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.pbm-btn-plain:hover { color: var(--pbm-text); border-color: var(--pbm-text-dim); }
-
-.pbm-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--pbm-text-dim);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.pbm-icon-btn:hover { background: var(--pbm-blue-dim); color: var(--pbm-blue); }
-.pbm-icon-btn--danger:hover { background: var(--pbm-red-dim); color: var(--pbm-red); }
-.pbm-icon-btn--sm { width: 24px; height: 24px; }
-
-.pbm-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.pbm-table-wrapper :deep(.el-table) {
-  --el-table-border-color: var(--pbm-border);
-  --el-table-header-bg-color: #f0ebe5;
-  --el-table-tr-bg-color: #fff;
-  --el-table-row-hover-bg-color: var(--pbm-surface-hover);
-  --el-table-current-row-bg-color: rgba(201,149,60,0.06);
-  --el-table-text-color: var(--pbm-text);
-  --el-table-header-text-color: var(--pbm-text-dim);
-  background: var(--pbm-surface);
-  border: 1px solid var(--pbm-border);
-  border-radius: var(--pbm-radius);
-}
-.pbm-table-wrapper :deep(.el-table__header-wrapper) { border-bottom: 1px solid var(--pbm-border); }
-.pbm-table-wrapper :deep(.el-table__header th) { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-.pbm-table-wrapper :deep(.el-table__body tr.el-table__row--striped) { background: #faf7f4; }
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::before),
-.pbm-table-wrapper :deep(.el-table__inner-wrapper::after) { display: none; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper) { overflow-y: auto; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar) { width: 5px; }
-.pbm-table-wrapper :deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) { background: var(--pbm-border); border-radius: 3px; }
-
-:deep(.el-form-item__label) { color: var(--pbm-text-dim); font-size: 13px; }
-:deep(.el-input__wrapper),
-:deep(.el-select__wrapper),
-:deep(.el-textarea__inner) {
-  background: #f5f0eb;
-  border: 1px solid var(--pbm-border);
-  box-shadow: none;
-  border-radius: var(--pbm-radius);
-  color: var(--pbm-text);
-}
-:deep(.el-input__wrapper:hover),
-:deep(.el-select__wrapper:hover),
-:deep(.el-textarea__inner:hover) { border-color: var(--pbm-text-dim); }
-:deep(.el-input__wrapper.is-focus),
-:deep(.el-select__wrapper.is-focus),
-:deep(.el-textarea__inner:focus) { border-color: var(--pbm-accent); box-shadow: 0 0 0 2px var(--pbm-accent-glow); }
-:deep(.el-input__inner) { color: var(--pbm-text); }
-:deep(.el-input__inner::placeholder) { color: rgba(138,127,114,0.4); }
-:deep(.el-input-number__increase),
-:deep(.el-input-number__decrease) { background: #f0ebe5; color: var(--pbm-text-dim); border-color: var(--pbm-border); }
-
-.pbm-body::-webkit-scrollbar { width: 4px; }
-.pbm-body::-webkit-scrollbar-thumb { background: #d5ccc0; border-radius: 2px; }
 </style>

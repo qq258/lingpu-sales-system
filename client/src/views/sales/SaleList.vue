@@ -26,7 +26,7 @@
               <template #default="{ row }">{{ row.store?.name || '-' }}</template>
             </el-table-column>
             <el-table-column label="商品信息" min-width="200">
-              <template #default="{ row }">{{ row.sku_name || '-' }}</template>
+              <template #default="{ row }">{{ row.model_name || '-' }}</template>
             </el-table-column>
             <el-table-column label="应收" width="100" align="right">
               <template #default="{ row }">¥{{ (row.total_amount || 0).toFixed(2) }}</template>
@@ -82,7 +82,7 @@
         <el-table :data="detailData?.items || []" border stripe size="small" element-loading-background="rgba(245,240,235,0.8)">
           <el-table-column label="商品" min-width="180">
             <template #default="{ row }">
-              {{ row.skuName }}
+              {{ row.modelName }}
             </template>
           </el-table-column>
           <el-table-column prop="quantity" label="数量" width="70" align="center" />
@@ -168,8 +168,8 @@ async function showDetail(row: any) {
       createdAt: d.created_at,
       remark: d.remark || '',
       items: (d.items || []).map((item: any) => ({
-        skuId: item.sku_id,
-        skuName: item.sku_name,
+        modelId: item.model_id,
+        modelName: item.model_name,
         quantity: item.quantity,
         price: item.unit_price || 0,
         totalPrice: item.total_price || item.unit_price * item.quantity || 0,
@@ -200,8 +200,8 @@ async function reprint(row: any) {
       changeAmount: d.change_amount || 0,
       remark: d.remark || '',
       items: (d.items || []).map((item: any) => ({
-        skuId: item.sku_id,
-        skuName: item.sku_name,
+        modelId: item.model_id,
+        modelName: item.model_name,
         imei: item.imei || '',
         quantity: item.quantity,
         price: item.unit_price || 0,

@@ -81,6 +81,13 @@ model pdt_model {
   id           Int      @id @default(autoincrement())
   brand_id     Int
   name         String
+  color        String?
+  ram          String?
+  rom          String?
+  sale_price   Float
+  cost_price   Float?
+  manufacturer_barcode String? @unique
+  image_path   String?
   launch_year  Int?
   os_type      String?
   network_type String?
@@ -91,61 +98,19 @@ model pdt_model {
   status       Int      @default(1)
   created_at   DateTime @default(now())
 
-  brand pdt_brand @relation(fields: [brand_id], references: [id])
-  skus  pdt_sku[]
+  brand                pdt_brand                @relation(fields: [brand_id], references: [id])
+  purchase_items       pch_purchase_item[]
+  inventory            wh_inventory[]
+  inventory_logs       wh_inventory_log[]
+  inventory_imei       wh_inventory_imei[]
+  inventory_check_items wh_inventory_check_item[]
+  sales                sale_order[]
+  sale_order_items     sale_order_item[]
+  transfers            wh_transfer[]
 
   @@index([brand_id])
   @@index([name])
-}
-
-model pdt_sku {
-  id                  Int      @id @default(autoincrement())
-  model_id            Int
-  sku_code            String   @unique
-  manufacturer_barcode String? @unique
-  color               String?
-  ram                 String?
-  rom                 String?
-  sale_price          Float
-  cost_price          Float?
-  status              Int      @default(1)
-  image_path          String?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @default(now()) @updatedAt
-
-  model           pdt_model           @relation(fields: [model_id], references: [id])
-  barcodes        pdt_sku_barcode[]
-  images          pdt_sku_image[]
-  purchase_items  pch_purchase_item[]
-  inventory       wh_inventory[]
-  inventory_logs  wh_inventory_log[]
-  inventory_imei  wh_inventory_imei[]
-  inventory_check_items wh_inventory_check_item[]
-  sales           sale_order[]
-  transfers       wh_transfer[]
-
-  @@index([model_id])
   @@index([manufacturer_barcode])
-  @@index([sku_code])
-}
-
-model pdt_sku_barcode {
-  id        Int      @id @default(autoincrement())
-  sku_id    Int
-  barcode   String   @unique
-  created_at DateTime @default(now())
-
-  sku pdt_sku @relation(fields: [sku_id], references: [id])
-}
-
-model pdt_sku_image {
-  id         Int      @id @default(autoincrement())
-  sku_id     Int
-  image_path String
-  sort       Int      @default(0)
-  created_at DateTime @default(now())
-
-  sku pdt_sku @relation(fields: [sku_id], references: [id])
 }
 
 model pch_supplier {
@@ -187,41 +152,40 @@ model pch_purchase_entry {
 model pch_purchase_item {
   id         Int      @id @default(autoincrement())
   entry_id   Int
-  sku_id     Int
+  model_id   Int
   imei       String
   unit_price Float
   subtotal   Float?
 
   entry pch_purchase_entry @relation(fields: [entry_id], references: [id])
-  sku   pdt_sku            @relation(fields: [sku_id], references: [id])
+  model pdt_model          @relation(fields: [model_id], references: [id])
 
   @@index([entry_id])
-  @@index([sku_id])
+  @@index([model_id])
   @@index([imei])
 }
 
 model wh_inventory {
   id         Int @id @default(autoincrement())
-  sku_id     Int
+  model_id   Int
   store_id   Int
   quantity   Int @default(0)
   brand_name String?
   model_name String?
-  sku_code   String?
   color      String?
   storage    String?
   cost_price Float?
   sale_price Float?
 
-  sku   pdt_sku   @relation(fields: [sku_id], references: [id])
+  model pdt_model @relation(fields: [model_id], references: [id])
   store sys_store @relation(fields: [store_id], references: [id])
 
-  @@unique([sku_id, store_id])
+  @@unique([model_id, store_id])
 }
 
 model wh_inventory_log {
   id          Int      @id @default(autoincrement())
-  sku_id      Int
+  model_id    Int
   store_id    Int
   change_type String
   qty_before  Int
@@ -233,18 +197,18 @@ model wh_inventory_log {
   operator_id Int?
   created_at  DateTime @default(now())
 
-  sku   pdt_sku   @relation(fields: [sku_id], references: [id])
-  store sys_store @relation(fields: [store_id], references: [id])
+  model    pdt_model @relation(fields: [model_id], references: [id])
+  store    sys_store @relation(fields: [store_id], references: [id])
   operator sys_user? @relation(fields: [operator_id], references: [id])
 
-  @@index([sku_id, store_id])
+  @@index([model_id, store_id])
   @@index([change_type])
   @@index([created_at])
 }
 
 model wh_inventory_imei {
   id         Int       @id @default(autoincrement())
-  sku_id     Int
+  model_id   Int
   store_id   Int
   imei       String    @unique
   status     String    @default("in_stock")
@@ -252,7 +216,7 @@ model wh_inventory_imei {
   sold_at    DateTime?
   created_at DateTime  @default(now())
 
-  sku   pdt_sku   @relation(fields: [sku_id], references: [id])
+  model pdt_model @relation(fields: [model_id], references: [id])
   store sys_store @relation(fields: [store_id], references: [id])
 }
 
@@ -274,21 +238,21 @@ model wh_inventory_check {
 model wh_inventory_check_item {
   id           Int  @id @default(autoincrement())
   check_id     Int
-  sku_id       Int
+  model_id     Int
   expected_qty Int
   actual_qty   Int
   diff_qty     Int?
 
   check wh_inventory_check @relation(fields: [check_id], references: [id])
-  sku   pdt_sku           @relation(fields: [sku_id], references: [id])
+  model pdt_model          @relation(fields: [model_id], references: [id])
 }
 
 model sale_order {
   id            Int      @id @default(autoincrement())
   order_no      String   @unique
   store_id      Int
-  sku_id        Int
-  sku_name      String
+  model_id      Int
+  model_name    String
   quantity      Int
   unit_price    Float
   total_amount  Float?
@@ -303,7 +267,7 @@ model sale_order {
   created_at    DateTime @default(now())
 
   store    sys_store @relation(fields: [store_id], references: [id])
-  sku      pdt_sku   @relation(fields: [sku_id], references: [id])
+  model    pdt_model @relation(fields: [model_id], references: [id])
   operator sys_user  @relation(fields: [operator_id], references: [id])
   items    sale_order_item[]
 
@@ -315,13 +279,14 @@ model sale_order {
 model sale_order_item {
   id          Int      @id @default(autoincrement())
   sale_order_id Int
-  sku_id      Int
-  sku_name    String
+  model_id    Int
+  model_name  String
   imei        String?
   quantity    Int
   unit_price  Float
   total_price Float
 
+  model      pdt_model @relation(fields: [model_id], references: [id])
   sale_order sale_order @relation(fields: [sale_order_id], references: [id])
 
   @@index([sale_order_id])
@@ -332,7 +297,7 @@ model wh_transfer {
   transfer_no          String   @unique
   from_store_id        Int
   to_store_id          Int
-  sku_id               Int
+  model_id             Int
   quantity             Int
   status               String   @default("pending")
   applicant_id         Int
@@ -345,7 +310,7 @@ model wh_transfer {
 
   from_store        sys_store? @relation("from_store", fields: [from_store_id], references: [id])
   to_store          sys_store? @relation("to_store", fields: [to_store_id], references: [id])
-  sku               pdt_sku    @relation(fields: [sku_id], references: [id])
+  model             pdt_model  @relation(fields: [model_id], references: [id])
   applicant         sys_user   @relation("applicant", fields: [applicant_id], references: [id])
   outbound_operator sys_user?  @relation("outbound_operator", fields: [outbound_operator_id], references: [id])
   inbound_operator  sys_user?  @relation("inbound_operator", fields: [inbound_operator_id], references: [id])

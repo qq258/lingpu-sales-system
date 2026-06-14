@@ -39,54 +39,67 @@ router.post('/sales', async (req: Request, res: Response) => {
     }
 
     const orderNo = await generateOrderNo('SA', store.code);
-    let totalAmount = 0;
-
-    // 按 IMEI 逐条校验并收集信息
-    const imeiRecords: Array<{ imei: string; skuId: number; brandName: string; modelName: string; color: string; storage: string; unitPrice: number }> = [];
-    for (const item of items) {
-      const { imei, unit_price } = item;
-      if (!imei) {
-        throw new Error('IMEI不能为空');
-      }
-
-      const record = await prisma.wh_inventory_imei.findUnique({
-        where: { imei },
-        include: {
-          sku: { include: { model: { include: { brand: { select: { name: true } } } } } },
-        },
-      });
-
-      if (!record) {
-        throw new Error(`IMEI ${imei} 不存在`);
-      }
-      if (record.status !== 'in_stock') {
-        throw new Error(`IMEI ${imei} 已售出`);
-      }
-      if (record.store_id !== storeId) {
-        throw new Error(`IMEI ${imei} 不属于当前门店`);
-      }
-
-      const price = unit_price || record.sku?.sale_price || 0;
-      totalAmount += price;
-
-      const brandName = record.sku?.model?.brand?.name || '';
-      const modelName = record.sku?.model?.name || '';
-      const color = record.sku?.color || '';
-      const storage = [record.sku?.ram, record.sku?.rom].filter(Boolean).join('/') || '';
-
-      imeiRecords.push({ imei, skuId: record.sku_id, brandName, modelName, color, storage, unitPrice: price });
-    }
 
     const result = await prisma.$transaction(async (tx) => {
+      interface ImeiRecord {
+        imei: string;
+        modelId: number;
+        brandName: string;
+        modelName: string;
+        color: string;
+        storage: string;
+        unitPrice: number;
+      }
+
+      const imeiRecords: ImeiRecord[] = [];
+      let totalAmount = 0;
+
+      for (const item of items) {
+        const { imei, unit_price } = item;
+        if (!imei) {
+          throw new Error('IMEI不能为空');
+        }
+
+        // IMEI 校验在事务内执行，避免并发重复售卖
+        const record = await tx.wh_inventory_imei.findUnique({
+          where: { imei },
+          include: {
+            model: {
+              include: { brand: { select: { name: true } } },
+            },
+          },
+        });
+
+        if (!record) {
+          throw new Error(`IMEI ${imei} 不存在`);
+        }
+        if (record.status !== 'in_stock') {
+          throw new Error(`IMEI ${imei} 已售出`);
+        }
+        if (record.store_id !== storeId) {
+          throw new Error(`IMEI ${imei} 不属于当前门店`);
+        }
+
+        const price = unit_price || record.model?.sale_price || 0;
+        totalAmount += price;
+
+        const brandName = record.model?.brand?.name || '';
+        const modelName = record.model?.name || '';
+        const color = record.model?.color || '';
+        const storage = [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '';
+
+        imeiRecords.push({ imei, modelId: record.model_id, brandName, modelName, color, storage, unitPrice: price });
+      }
+
       const firstItem = imeiRecords[0];
-      const firstSkuName = `${firstItem.brandName} ${firstItem.modelName} - ${firstItem.color}/${firstItem.storage}`.trim();
+      const firstModelName = `${firstItem.brandName} ${firstItem.modelName} - ${firstItem.color}/${firstItem.storage}`.trim();
 
       const saleOrder = await tx.sale_order.create({
         data: {
           order_no: orderNo,
           store_id: storeId,
-          sku_id: firstItem.skuId,
-          sku_name: firstSkuName,
+          model_id: firstItem.modelId,
+          model_name: firstModelName,
           quantity: imeiRecords.length,
           unit_price: firstItem.unitPrice || 0,
           total_amount: totalAmount,
@@ -101,13 +114,13 @@ router.post('/sales', async (req: Request, res: Response) => {
       });
 
       for (const rec of imeiRecords) {
-        const skuName = `${rec.brandName} ${rec.modelName} - ${rec.color}/${rec.storage}`.trim();
+        const modelNameStr = `${rec.brandName} ${rec.modelName} - ${rec.color}/${rec.storage}`.trim();
 
         await tx.sale_order_item.create({
           data: {
             sale_order_id: saleOrder.id,
-            sku_id: rec.skuId,
-            sku_name: skuName,
+            model_id: rec.modelId,
+            model_name: modelNameStr,
             imei: rec.imei,
             quantity: 1,
             unit_price: rec.unitPrice,
@@ -115,24 +128,23 @@ router.post('/sales', async (req: Request, res: Response) => {
           },
         });
 
-        // 标记 IMEI 为已售出
         await tx.wh_inventory_imei.update({
           where: { imei: rec.imei },
           data: { status: 'sold', sold_at: new Date() },
         });
       }
 
-      // 按 SKU 分组更新汇总库存
-      const skuGroups: Record<number, number> = {};
+      // 按型号分组更新汇总库存
+      const modelGroups: Record<number, number> = {};
       for (const rec of imeiRecords) {
-        skuGroups[rec.skuId] = (skuGroups[rec.skuId] || 0) + 1;
+        modelGroups[rec.modelId] = (modelGroups[rec.modelId] || 0) + 1;
       }
 
-      for (const [skuIdStr, count] of Object.entries(skuGroups)) {
-        const skuId = parseInt(skuIdStr);
+      for (const [modelIdStr, count] of Object.entries(modelGroups)) {
+        const modelId = parseInt(modelIdStr);
 
         const inventory = await tx.wh_inventory.findUnique({
-          where: { sku_id_store_id: { sku_id: skuId, store_id: storeId } },
+          where: { model_id_store_id: { model_id: modelId, store_id: storeId } },
         });
 
         const qtyBefore = inventory?.quantity || 0;
@@ -145,12 +157,12 @@ router.post('/sales', async (req: Request, res: Response) => {
           });
         }
 
-        const skuRec = imeiRecords.find(r => r.skuId === skuId);
-        const skuName = skuRec ? `${skuRec.brandName} ${skuRec.modelName}`.trim() : '';
+        const modelRec = imeiRecords.find(r => r.modelId === modelId);
+        const modelNameStr2 = modelRec ? `${modelRec.brandName} ${modelRec.modelName}`.trim() : '';
 
         await tx.wh_inventory_log.create({
           data: {
-            sku_id: skuId,
+            model_id: modelId,
             store_id: storeId,
             change_type: 'sale_out',
             qty_before: qtyBefore,
@@ -159,7 +171,7 @@ router.post('/sales', async (req: Request, res: Response) => {
             ref_type: 'sale_order',
             ref_id: saleOrder.id,
             operator_id: req.user!.userId,
-            remark: `销售出库: ${orderNo} - ${skuName}`,
+            remark: `销售出库: ${orderNo} - ${modelNameStr2}`,
           },
         });
       }
@@ -167,7 +179,7 @@ router.post('/sales', async (req: Request, res: Response) => {
       const updatedOrder = await tx.sale_order.update({
         where: { id: saleOrder.id },
         data: {
-          sku_name: imeiRecords.map(r => `${r.brandName} ${r.modelName} - ${r.color}/${r.storage}`.trim()).join('; '),
+          model_name: imeiRecords.map(r => `${r.brandName} ${r.modelName} - ${r.color}/${r.storage}`.trim()).join('; '),
         },
       });
 
@@ -206,7 +218,7 @@ router.get('/sales', async (req: Request, res: Response) => {
         orderBy: { created_at: 'desc' },
         include: {
           store: { select: { id: true, name: true } },
-          sku: { select: { id: true, sku_code: true, color: true, ram: true, rom: true } },
+          model: { select: { id: true, name: true, color: true, ram: true, rom: true } },
           operator: { select: { id: true, real_name: true } },
         },
       }),
@@ -232,7 +244,7 @@ router.get('/sales/:id', async (req: Request, res: Response) => {
       where: { id },
       include: {
         store: { select: { id: true, name: true, code: true } },
-        sku: { include: { model: { include: { brand: { select: { id: true, name: true } } } } } },
+        model: { include: { brand: { select: { id: true, name: true } } } },
         operator: { select: { id: true, real_name: true } },
         items: true,
       },
@@ -265,7 +277,6 @@ router.get('/sales/:id/print-data', async (req: Request, res: Response) => {
       return res.status(404).json(r);
     }
 
-    // 组装打印数据：以 items（sale_order_item）为主，每条 item 包含 IMEI
     const printData = {
       order_no: sale.order_no,
       created_at: sale.created_at,
@@ -280,8 +291,8 @@ router.get('/sales/:id/print-data', async (req: Request, res: Response) => {
       remark: sale.remark,
       items: ((sale as any).items || []).map((item: any) => ({
         id: item.id,
-        sku_id: item.sku_id,
-        sku_name: item.sku_name,
+        model_id: item.model_id,
+        model_name: item.model_name,
         imei: item.imei,
         quantity: item.quantity,
         unit_price: item.unit_price,

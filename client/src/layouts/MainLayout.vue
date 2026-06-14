@@ -27,14 +27,10 @@
           <el-menu-item index="/store/list">门店列表</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="product">
-          <template #title>
-            <el-icon><Goods /></el-icon>
-            <span>商品管理</span>
-          </template>
-          <el-menu-item index="/product/brand-model">品牌型号管理</el-menu-item>
-          <el-menu-item index="/product/sku">SKU管理</el-menu-item>
-        </el-sub-menu>
+        <el-menu-item index="/product/brand-model">
+          <el-icon><Goods /></el-icon>
+          <template #title>品牌型号管理</template>
+        </el-menu-item>
 
         <el-sub-menu index="purchase">
           <template #title>

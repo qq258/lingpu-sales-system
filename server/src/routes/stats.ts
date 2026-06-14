@@ -25,7 +25,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
     const whereStore: any = {};
     if (storeId) whereStore.store_id = storeId;
 
-    const [todaySales, todayOrders, recentSales, topSkus, lowStock] = await Promise.all([
+    const [todaySales, todayOrders, recentSales, topModels, lowStock] = await Promise.all([
       prisma.sale_order.aggregate({
         where: { ...whereStore, created_at: { gte: todayStart, lte: todayEnd } },
         _sum: { actual_amount: true },
@@ -40,7 +40,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
         select: { actual_amount: true, created_at: true },
       }),
       prisma.sale_order.groupBy({
-        by: ['sku_id'],
+        by: ['model_id'],
         where: whereStore,
         _sum: { quantity: true, actual_amount: true },
         orderBy: { _sum: { quantity: 'desc' } },
@@ -50,17 +50,17 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
         where: { ...whereStore, quantity: { lte: 10 } },
         take: 5,
         orderBy: { quantity: 'asc' },
-        include: { sku: { include: { model: { include: { brand: { select: { id: true, name: true } } } } } } },
+        include: { model: { include: { brand: { select: { id: true, name: true } } } } },
       }),
     ]);
 
-    const topSkuDetails = await Promise.all(
-      topSkus.map(async (item) => {
-        const sku = await prisma.pdt_sku.findUnique({
-          where: { id: item.sku_id },
-          include: { model: { include: { brand: { select: { id: true, name: true } } } } },
+    const topModelDetails = await Promise.all(
+      topModels.map(async (item) => {
+        const model = await prisma.pdt_model.findUnique({
+          where: { id: item.model_id },
+          include: { brand: { select: { id: true, name: true } } },
         });
-        return { sku, totalQuantity: item._sum.quantity, totalAmount: item._sum.actual_amount };
+        return { model, totalQuantity: item._sum.quantity, totalAmount: item._sum.actual_amount };
       }),
     );
 
@@ -71,7 +71,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response) => {
         todaySalesAmount: todaySales._sum.actual_amount || 0,
         todayOrderCount: todayOrders,
         recent7DaysTrend: recentSales,
-        topSkuSales: topSkuDetails,
+        topModelSales: topModelDetails,
         lowStockItems: lowStock,
       },
     };
@@ -168,7 +168,7 @@ router.get('/stats/transfers', async (req: Request, res: Response) => {
         include: {
           from_store: { select: { id: true, name: true } },
           to_store: { select: { id: true, name: true } },
-          sku: { select: { id: true, sku_code: true } },
+          model: { select: { id: true, name: true } },
         },
       }),
     ]);

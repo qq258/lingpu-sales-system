@@ -6,7 +6,7 @@ export async function getDashboard(storeId?: number): Promise<{
   lowStockCount: number
   weeklySales: Array<{ date: string; amount: number }>
   recentOrders: any[]
-  topProducts: Array<{ skuId: number; skuName: string; quantity: number; amount: number }>
+  topProducts: Array<{ modelId: number; modelName: string; quantity: number; amount: number }>
   storeCompare?: Array<{ storeName: string; sales: number; orders: number }>
 }> {
   const params = storeId ? { storeId } : {}
