@@ -26,3 +26,8 @@ export async function getBrandInventory(params?: { storeId?: number; keyword?: s
   const res: any = await request.get('/inventory', { params: query })
   return res.data
 }
+
+export async function updateImeiInfo(id: number, data: { imei2?: string; sn_code?: string }) {
+  const res: any = await request.put(`/inventory/imei/${id}`, data)
+  return res.data
+}

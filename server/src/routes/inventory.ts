@@ -4,6 +4,7 @@ import { ApiResponse } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { storeScopeMiddleware } from '../middleware/store-scope';
 import { generateOrderNo } from '../utils/order-no';
+import * as XLSX from 'xlsx';
 
 const router = Router();
 
@@ -250,6 +251,8 @@ router.get('/imei-list', async (req: Request, res: Response) => {
     if (keyword) {
       const keywordFilter = [
         { imei: { contains: keyword as string } },
+        { imei2: { contains: keyword as string } },
+        { sn_code: { contains: keyword as string } },
         { model: { name: { contains: keyword as string } } },
         { model: { manufacturer_barcode: { contains: keyword as string } } },
       ];
@@ -300,6 +303,38 @@ router.get('/imei-list', async (req: Request, res: Response) => {
       message: 'success',
       data: { list, total, page: parseInt(page as string), pageSize: parseInt(pageSize as string) },
     };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+router.put('/imei/:id', async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { imei2, sn_code } = req.body;
+
+    if (!imei2 && !sn_code) {
+      const r: ApiResponse = { code: 400, message: 'IMEI2 和 SN 码至少提供一个' };
+      return res.status(400).json(r);
+    }
+
+    const record = await prisma.wh_inventory_imei.findUnique({ where: { id } });
+    if (!record) {
+      const r: ApiResponse = { code: 404, message: '记录不存在' };
+      return res.status(404).json(r);
+    }
+
+    const updated = await prisma.wh_inventory_imei.update({
+      where: { id },
+      data: {
+        ...(imei2 !== undefined ? { imei2 } : {}),
+        ...(sn_code !== undefined ? { sn_code } : {}),
+      },
+    });
+
+    const r: ApiResponse = { code: 200, message: '更新成功', data: updated };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };
@@ -716,5 +751,109 @@ router.delete('/checks/:id', async (req: Request, res: Response) => {
     return res.status(500).json(r);
   }
 });
+
+// 导出库存（按 IMEI 明细，每台手机一条记录）
+router.get('/export', async (req: Request, res: Response) => {
+  try {
+    const { keyword } = req.query;
+    const imeiWhere: any = {};
+    if (keyword) {
+      imeiWhere.OR = [
+        { imei: { contains: keyword as string } },
+        { model: { name: { contains: keyword as string } } },
+      ];
+    }
+    const invData = await prisma.wh_inventory_imei.findMany({
+      where: imeiWhere,
+      orderBy: { id: 'desc' },
+      include: {
+        model: { include: { brand: { select: { name: true } } } },
+        store: { select: { name: true } },
+      },
+    });
+    const data = invData.map((r) => ({
+      '品牌型号': `${r.model?.brand?.name || ''} ${r.model?.name || ''}`,
+      'IMEI1': r.imei,
+      'IMEI2': r.imei2 || '',
+      'S/N码': r.sn_code || '',
+      '是否售出': r.status !== 'in_stock' ? '是' : '否',
+      '售出时间': r.status !== 'in_stock' && r.sold_at ? formatDate(r.sold_at) : '',
+      '所在门店': r.store?.name || '',
+      '状态': r.status === 'in_stock' ? '在库' : '已售',
+      '创建时间': formatDate(r.created_at),
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = Object.keys(data[0] || {}).map((k) => ({ wch: Math.max(k.length * 2, 12) }));
+    XLSX.utils.book_append_sheet(wb, ws, '库存');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=inventory_${dateStr}.xlsx`);
+    res.send(buffer);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 导出库存流水
+router.get('/logs/export', async (req: Request, res: Response) => {
+  try {
+    const { changeType, startDate, endDate } = req.query;
+    const where: any = {};
+    if (changeType) where.change_type = changeType as string;
+    if (startDate && endDate) {
+      where.created_at = {
+        gte: new Date(startDate as string),
+        lte: new Date(endDate as string + 'T23:59:59'),
+      };
+    }
+    const logData = await prisma.wh_inventory_log.findMany({
+      where,
+      include: { model: { select: { name: true } }, store: { select: { name: true } } },
+      orderBy: { id: 'desc' },
+      take: 5000,
+    });
+    const typeMap: Record<string, string> = {
+      purchase_in: '采购入库', sale_out: '销售出库', transfer_out: '调货出库',
+      transfer_in: '调货入库', check_adjust: '盘点调整', initial: '期初录入',
+    };
+    const data = logData.map((r) => ({
+      '编号': r.id,
+      '门店': r.store?.name || '',
+      '型号': r.model?.name || '',
+      '变动类型': typeMap[r.change_type] || r.change_type,
+      '变动前数量': r.qty_before,
+      '变动数量': r.qty_change,
+      '变动后数量': r.qty_after,
+      '备注': r.remark || '',
+      '时间': r.created_at?.toISOString().slice(0, 16).replace('T', ' ') || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = Object.keys(data[0] || {}).map((k) => ({ wch: Math.max(k.length * 2, 12) }));
+    XLSX.utils.book_append_sheet(wb, ws, '库存流水');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=inventory_logs_${dateStr}.xlsx`);
+    res.send(buffer);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+function formatDate(d: any): string {
+  if (!d) return '';
+  const date = new Date(d);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const mins = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${mins}`;
+}
 
 export default router;
