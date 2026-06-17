@@ -24,6 +24,10 @@
                   <label class="sbd-label">型号</label>
                   <input v-model="item.model" class="sbd-field-input" placeholder="型号名称" />
                 </div>
+                <div class="sbd-field-row">
+                  <label class="sbd-label">售价</label>
+                  <input v-model.number="item.salePrice" class="sbd-field-input" type="number" min="0" step="0.01" placeholder="销售价格" />
+                </div>
               </div>
             </div>
           </div>
@@ -47,6 +51,7 @@ export interface BrandModelItem {
   rawText: string
   brand: string
   model: string
+  salePrice?: number
 }
 
 const props = defineProps<{
@@ -80,7 +85,7 @@ async function handleConfirm() {
         brandId = brandRes?.data?.id || brandRes?.id
       }
       if (brandId) {
-        await createModel(brandId, item.model.trim())
+        await createModel(brandId, item.model.trim(), { sale_price: item.salePrice })
         saved.push({ ...item })
       }
     }

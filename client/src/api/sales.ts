@@ -17,7 +17,7 @@ export async function getSale(id: number): Promise<any> {
 }
 
 export async function createSale(data: {
-  items: Array<{ imei: string; unit_price: number }>
+  items: Array<{ imei: string; unit_price: number; imei2?: string | null; sn_code?: string | null }>
   actual_amount: number
   customer_name?: string
   customer_address?: string

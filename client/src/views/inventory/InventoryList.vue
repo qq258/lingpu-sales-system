@@ -21,6 +21,13 @@
             <el-select v-model="searchModelId" placeholder="型号" clearable filterable size="small" style="width:130px;" :disabled="!searchBrandId">
               <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
             </el-select>
+            <el-select v-model="searchStatus" placeholder="状态" clearable size="small" style="width:110px;">
+              <el-option label="在库" value="in_stock" />
+              <el-option label="已售" value="sold" />
+              <el-option label="已退货" value="returned" />
+              <el-option label="已换货" value="exchanged" />
+              <el-option label="维修中" value="repairing" />
+            </el-select>
             <button class="pbm-btn-accent" @click="loadImeiList">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <span>查询</span>
@@ -50,10 +57,10 @@
               <template #default="{ row }">{{ row.sn_code || '-' }}</template>
             </el-table-column>
             <el-table-column prop="storeName" label="门店" width="120" />
-            <el-table-column label="是否售出" width="100" align="center">
+            <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
-                <span :class="['pbm-status-tag', row.isSold ? 'pbm-status-tag--sold' : 'pbm-status-tag--ok']">
-                  {{ row.isSold ? '是' : '否' }}
+                <span :class="['pbm-status-tag', `pbm-status-tag--${row.status}`]">
+                  {{ ({ in_stock: '在库', sold: '已售', returned: '已退货', exchanged: '已换货', repairing: '维修中' } as Record<string, string>)[row.status] || row.status }}
                 </span>
               </template>
             </el-table-column>
@@ -90,6 +97,7 @@ const pageSize = ref(20)
 const searchKeyword = ref('')
 const searchBrandId = ref<number | undefined>()
 const searchModelId = ref<number | undefined>()
+const searchStatus = ref<string | undefined>()
 const brands = ref<any[]>([])
 const models = ref<any[]>([])
 
@@ -108,6 +116,7 @@ async function loadImeiList() {
     if (searchKeyword.value) params.keyword = searchKeyword.value
     if (searchBrandId.value) params.brand_id = searchBrandId.value
     if (searchModelId.value) params.model_id = searchModelId.value
+    if (searchStatus.value) params.status = searchStatus.value
     if (userStore.effectiveStoreId) params.storeId = userStore.effectiveStoreId
     const result = await getInventoryImeiList(params)
     imeiList.value = result.list
@@ -328,7 +337,10 @@ onMounted(() => {
   font-family: var(--pbm-mono);
 }
 .pbm-status-tag--ok { background: rgba(34,197,94,0.12); color: #16a34a; }
-.pbm-status-tag--sold { background: rgba(220,53,69,0.12); color: #dc3545; }
+.pbm-status-tag--sold { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.pbm-status-tag--returned { background: rgba(250,173,20,0.12); color: #b8860b; }
+.pbm-status-tag--exchanged { background: rgba(107,114,128,0.12); color: #6b7280; }
+.pbm-status-tag--repairing { background: rgba(250,173,20,0.12); color: #b8860b; }
 
 .pbm-pagination-wrapper {
   display: flex;

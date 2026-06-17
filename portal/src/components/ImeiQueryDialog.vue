@@ -176,12 +176,12 @@ function maskAddress(addr: string) {
 .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .result-area { margin-top: 20px; display: flex; flex-direction: column; gap: 18px; }
-.result-section-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.result-section-title { font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .info-item { display: flex; flex-direction: column; gap: 2px; }
-.info-label { font-size: 12px; color: var(--text-tertiary); }
-.info-value { font-size: 14px; color: var(--text); font-weight: 500; }
-.info-value.mono { font-family: 'SF Mono', monospace; font-size: 13px; }
+.info-label { font-size: 14px; color: var(--text-tertiary); }
+.info-value { font-size: 16px; color: var(--text); font-weight: 500; }
+.info-value.mono { font-family: 'SF Mono', monospace; font-size: 15px; }
 .status-badge { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 6px; display: inline-block; width: fit-content; }
 .status-ok { background: var(--success); color: #fff; }
 .status-sold { background: var(--border); color: var(--text-tertiary); }

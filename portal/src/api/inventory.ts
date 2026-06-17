@@ -1,6 +1,6 @@
 import request from './request'
 
-export async function getInventoryImeiList(params?: { storeId?: number; keyword?: string; page?: number; pageSize?: number; brandId?: number; modelId?: number }) {
+export async function getInventoryImeiList(params?: { storeId?: number; keyword?: string; page?: number; pageSize?: number; brandId?: number; modelId?: number; status?: string }) {
   const query: any = {}
   if (params?.keyword) query.keyword = params.keyword
   if (params?.page) query.page = params.page
@@ -8,6 +8,7 @@ export async function getInventoryImeiList(params?: { storeId?: number; keyword?
   if (params?.storeId) query.storeId = params.storeId
   if (params?.brandId) query.brand_id = params.brandId
   if (params?.modelId) query.model_id = params.modelId
+  if (params?.status) query.status = params.status
   const res: any = await request.get('/inventory/imei-list', { params: query })
   return res.data
 }

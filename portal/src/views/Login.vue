@@ -30,6 +30,31 @@
           <span v-else>{{ '登 录' }}</span>
         </button>
       </div>
+
+      <!-- 门店选择弹窗 -->
+      <div v-if="storeDialogVisible" class="store-overlay" @click.self="() => {}">
+        <div class="store-dialog glass-strong">
+          <div class="store-dialog-header">
+            <svg class="store-dialog-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="4"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="8" y1="2" x2="8" y2="22"/></svg>
+            <h2 class="store-dialog-title">选择门店</h2>
+            <p class="store-dialog-subtitle">请选择要登录的门店</p>
+          </div>
+          <div class="store-list">
+            <div
+              v-for="store in userStore.stores"
+              :key="store.id"
+              class="store-item"
+              :class="{ active: selectedStoreId === store.id }"
+              @click="selectedStoreId = store.id"
+            >
+              <svg class="store-item-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="10" y1="4" x2="10" y2="20"/></svg>
+              <span class="store-item-name">{{ store.name }}</span>
+              <svg v-if="selectedStoreId === store.id" class="store-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+          <button class="login-btn store-confirm-btn" @click="confirmStore">进入系统</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -45,19 +70,36 @@ const username = ref('')
 const password = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
+const storeDialogVisible = ref(false)
+const selectedStoreId = ref<number | null>(null)
 
 async function handleLogin() {
   if (!username.value || !password.value) { errorMsg.value = '请输入账号和密码'; return }
   errorMsg.value = ''
   loading.value = true
   try {
-    await userStore.login(username.value, password.value)
-    router.push('/dashboard')
+    const data = await userStore.login(username.value, password.value)
+    if (data.stores && data.stores.length > 1) {
+      // 多门店用户，弹出选择门店
+      selectedStoreId.value = data.stores[0].id
+      storeDialogVisible.value = true
+    } else {
+      // 单门店或无门店用户，直接进入
+      router.push('/dashboard')
+    }
   } catch (e: any) {
     errorMsg.value = e?.response?.data?.message || e?.message || '登录失败，请检查账号密码'
   } finally {
     loading.value = false
   }
+}
+
+function confirmStore() {
+  if (selectedStoreId.value) {
+    userStore.setStore(selectedStoreId.value)
+  }
+  storeDialogVisible.value = false
+  router.push('/dashboard')
 }
 </script>
 
@@ -91,4 +133,36 @@ async function handleLogin() {
 .login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 .login-btn-loading { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 门店选择弹窗 */
+.store-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+}
+.store-dialog {
+  max-width: 380px; width: 100%; padding: 32px 28px 28px;
+  border-radius: var(--radius-lg);
+}
+.store-dialog-header { text-align: center; margin-bottom: 24px; }
+.store-dialog-icon { margin-bottom: 12px; }
+.store-dialog-title { font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 4px; }
+.store-dialog-subtitle { font-size: 14px; color: var(--text-tertiary); margin: 0; }
+.store-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.store-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  background: #fff;
+}
+.store-item:hover { border-color: var(--primary); background: var(--primary-bg, #EFF6FF); }
+.store-item.active { border-color: var(--primary); background: var(--primary-bg, #EFF6FF); }
+.store-item-icon { flex-shrink: 0; }
+.store-item-name { flex: 1; font-size: 15px; font-weight: 500; color: var(--text); }
+.store-check { margin-left: auto; flex-shrink: 0; }
+.store-confirm-btn { width: 100%; }
 </style>

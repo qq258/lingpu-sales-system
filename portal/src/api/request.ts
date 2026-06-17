@@ -11,6 +11,11 @@ request.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // 附上当前选中的门店 ID
+  const storeId = localStorage.getItem('portal_selectedStoreId')
+  if (storeId) {
+    config.headers['x-store-id'] = storeId
+  }
   return config
 })
 

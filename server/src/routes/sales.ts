@@ -285,7 +285,7 @@ router.post('/sales', async (req: Request, res: Response) => {
       let totalAmount = 0;
 
       for (const item of items) {
-        const { imei, unit_price } = item;
+        const { imei, unit_price, imei2, sn_code } = item;
         if (!imei) {
           throw new Error('IMEI不能为空');
         }
@@ -318,7 +318,11 @@ router.post('/sales', async (req: Request, res: Response) => {
         const color = record.model?.color || '';
         const storage = [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '';
 
-        imeiRecords.push({ imei, imei2: record.imei2, sn_code: record.sn_code, modelId: record.model_id, brandName, modelName, color, storage, unitPrice: price });
+        // 使用用户传入的 imei2/sn_code（如有），否则保留原值
+        const finalImei2 = imei2 !== undefined ? imei2 : record.imei2;
+        const finalSnCode = sn_code !== undefined ? sn_code : record.sn_code;
+
+        imeiRecords.push({ imei, imei2: finalImei2, sn_code: finalSnCode, modelId: record.model_id, brandName, modelName, color, storage, unitPrice: price });
       }
 
       const firstItem = imeiRecords[0];
@@ -360,9 +364,12 @@ router.post('/sales', async (req: Request, res: Response) => {
           },
         });
 
+        const updateData: any = { status: 'sold', sold_at: new Date() };
+        if (rec.imei2) updateData.imei2 = rec.imei2;
+        if (rec.sn_code) updateData.sn_code = rec.sn_code;
         await tx.wh_inventory_imei.update({
           where: { imei: rec.imei },
-          data: { status: 'sold', sold_at: new Date() },
+          data: updateData,
         });
       }
 
@@ -428,7 +435,7 @@ router.post('/sales', async (req: Request, res: Response) => {
 
 router.get('/sales', async (req: Request, res: Response) => {
   try {
-    const { page = '1', pageSize = '20', start_date, end_date } = req.query;
+    const { page = '1', pageSize = '20', start_date, end_date, keyword } = req.query;
     const storeId = getStoreId(req);
 
     const where: any = { status: 'active' };
@@ -437,6 +444,14 @@ router.get('/sales', async (req: Request, res: Response) => {
       where.created_at = {};
       if (start_date) where.created_at.gte = new Date(start_date as string);
       if (end_date) where.created_at.lte = new Date(end_date as string + 'T23:59:59.999Z');
+    }
+    if (keyword) {
+      where.OR = [
+        { order_no: { contains: keyword as string } },
+        { customer_name: { contains: keyword as string } },
+        { model_name: { contains: keyword as string } },
+        { items: { some: { imei: { contains: keyword as string } } } },
+      ];
     }
 
     const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
@@ -452,6 +467,7 @@ router.get('/sales', async (req: Request, res: Response) => {
           store: { select: { id: true, name: true } },
           model: { select: { id: true, name: true, color: true, ram: true, rom: true, brand: { select: { id: true, name: true } } } },
           operator: { select: { id: true, real_name: true } },
+          items: { select: { id: true, imei: true, imei2: true, sn_code: true, model_name: true } },
         },
       }),
       prisma.sale_order.count({ where }),

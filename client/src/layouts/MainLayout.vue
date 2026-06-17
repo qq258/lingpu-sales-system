@@ -75,6 +75,11 @@
           <template #title>数据工具</template>
         </el-menu-item>
 
+        <el-menu-item index="/after-sales/list">
+          <el-icon><ChatDotSquare /></el-icon>
+          <template #title>售后管理</template>
+        </el-menu-item>
+
         <el-menu-item index="/system/user" v-if="userStore.isSuperAdmin || userStore.userInfo?.role === 'store_admin'">
           <el-icon><User /></el-icon>
           <template #title>用户管理</template>

@@ -13,7 +13,8 @@ export function storeScopeMiddleware(req: Request, res: Response, next: NextFunc
   if (isSuperAdmin) {
     const queryStoreId = req.query.store_id ? parseInt(req.query.store_id as string, 10) : req.query.storeId ? parseInt(req.query.storeId as string, 10) : undefined;
     const bodyStoreId = req.body?.store_id ? parseInt(req.body.store_id as string, 10) : undefined;
-    const effective = queryStoreId || bodyStoreId;
+    const headerStoreId = req.headers['x-store-id'] ? parseInt(req.headers['x-store-id'] as string, 10) : undefined;
+    const effective = queryStoreId || bodyStoreId || headerStoreId;
     (req as any).effectiveStoreId = effective || undefined;
   } else {
     (req as any).effectiveStoreId = user.storeId;

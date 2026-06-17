@@ -25,22 +25,24 @@
     </div>
 
     <!-- IMEI 行内编辑弹出框 -->
-    <div v-if="showImeiEditor" class="imei-overlay" @click.self="closeImeiEditor">
-      <div class="imei-editor-box glass-strong">
-        <div class="imei-editor-title">录入 {{ imeiEditTarget === 'sn' ? 'S/N 码' : `IMEI${imeiEditTarget}` }}</div>
-        <input
-          ref="imeiEditInputRef"
-          v-model="imeiEditValue"
-          class="imei-edit-input"
-          :placeholder="imeiEditTarget === 'sn' ? '扫码或输入 S/N 码' : `扫码或输入 IMEI${imeiEditTarget}`"
-          @keyup.enter="confirmImeiEdit"
-        />
-        <div class="imei-editor-actions">
-          <button class="imei-btn imei-btn-cancel" @click="closeImeiEditor">取消</button>
-          <button class="imei-btn imei-btn-confirm" @click="confirmImeiEdit">确认</button>
+    <teleport to="body">
+      <div v-if="showImeiEditor" class="imei-overlay" @click.self="closeImeiEditor">
+        <div class="imei-editor-box glass-strong">
+          <div class="imei-editor-title">录入 {{ imeiEditTarget === 'sn' ? 'S/N 码' : `IMEI${imeiEditTarget}` }}</div>
+          <input
+            ref="imeiEditInputRef"
+            v-model="imeiEditValue"
+            class="imei-edit-input"
+            :placeholder="imeiEditTarget === 'sn' ? '扫码或输入 S/N 码' : `扫码或输入 IMEI${imeiEditTarget}`"
+            @keyup.enter="confirmImeiEdit"
+          />
+          <div class="imei-editor-actions">
+            <button class="imei-btn imei-btn-cancel" @click="closeImeiEditor">取消</button>
+            <button class="imei-btn imei-btn-confirm" @click="confirmImeiEdit">确认</button>
+          </div>
         </div>
       </div>
-    </div>
+    </teleport>
   </div>
 </template>
 

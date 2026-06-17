@@ -163,6 +163,8 @@
       :items="pendingBrandItems"
       @confirm="onBrandSaved"
     />
+
+    <PrintReceipt ref="printReceiptRef" :data="printData" :store-name="storeName" />
   </div>
 </template>
 
@@ -171,11 +173,12 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { scanImeiForSale } from '@/api/inventory'
-import { createSale, createNoStockSale } from '@/api/sales'
+import { createSale, createNoStockSale, getSalePrintData } from '@/api/sales'
 import { getModels } from '@/api/product'
 import CartItemCard from '@/components/CartItemCard.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import SaveBrandDialog from '@/components/SaveBrandDialog.vue'
+import PrintReceipt from '@/components/PrintReceipt.vue'
 import type { BrandModelItem } from '@/components/SaveBrandDialog.vue'
 
 const userStore = useUserStore()
@@ -202,6 +205,11 @@ const noStockPrice = ref(0)
 const noStockImei1 = ref('')
 const noStockImei2 = ref('')
 const noStockSn = ref('')
+
+// 打印
+const printData = ref<any>(null)
+const printReceiptRef = ref()
+const storeName = ref('')
 const imei1Ref = ref<HTMLInputElement>()
 const imei2Ref = ref<HTMLInputElement>()
 const snRef = ref<HTMLInputElement>()
@@ -244,6 +252,10 @@ onMounted(() => {
       scanRef.value?.focus()
     }
   })
+  // 获取门店名
+  const sid = userStore.effectiveStoreId
+  const s = userStore.stores.find((x: any) => x.id === sid)
+  if (s) storeName.value = s.name
 })
 
 // -- 销售类型切换 --
@@ -476,7 +488,7 @@ async function openSaveBrandFromSearch() {
   const spaceIdx = rawText.indexOf(' ')
   const brand = spaceIdx > 0 ? rawText.slice(0, spaceIdx) : rawText
   const model = spaceIdx > 0 ? rawText.slice(spaceIdx + 1) : ''
-  pendingBrandItems.value = [{ rawText, brand, model }]
+  pendingBrandItems.value = [{ rawText, brand, model, salePrice: noStockPrice.value }]
   showSaveBrand.value = true
 }
 
@@ -500,13 +512,23 @@ async function confirmPay() {
 
 async function doNormalPay() {
   try {
-    await createSale({
-      items: cart.value.map(i => ({ imei: i.imei, unit_price: i.price })),
+    const result = await createSale({
+      items: cart.value.map(i => ({ imei: i.imei, unit_price: i.price, imei2: i.imei2 || null, sn_code: i.snCode || null })),
       actual_amount: totalAmount.value,
       customer_name: customerName.value || undefined,
       customer_phone: customerPhone.value || undefined,
+      customer_address: customerAddress.value || undefined,
+      remark: remark.value || undefined,
     })
     ElMessage.success({ message: `开单成功！共 ${cart.value.length} 件 ¥${totalAmount.value.toFixed(2)}`, duration: 4000 })
+    // 自动弹出打印预览
+    if (result?.id) {
+      try {
+        const data = await getSalePrintData(result.id)
+        printData.value = data
+        nextTick(() => { printReceiptRef.value?.open() })
+      } catch { /* print failed, non-critical */ }
+    }
     resetAll()
     nextTick(() => scanRef.value?.focus())
   } catch (e: any) {
@@ -524,7 +546,7 @@ async function doNoStockPay() {
     const spaceIdx = rawText.indexOf(' ')
     const brand = spaceIdx > 0 ? rawText.slice(0, spaceIdx) : rawText
     const model = spaceIdx > 0 ? rawText.slice(spaceIdx + 1) : ''
-    toSave.push({ rawText, brand, model })
+    toSave.push({ rawText, brand, model, salePrice: item.price })
   }
 
   if (toSave.length > 0) {
@@ -547,7 +569,7 @@ async function onBrandSaved(savedItems: BrandModelItem[]) {
 
 async function submitNoStockSale() {
   try {
-    await createNoStockSale({
+    const result = await createNoStockSale({
       items: cart.value.map(i => ({
         brand_name: i.brandName,
         model_name: i.modelName || i.brandName,
@@ -566,6 +588,14 @@ async function submitNoStockSale() {
       remark: remark.value || undefined,
     })
     ElMessage.success({ message: `无库存开单成功！共 ${cart.value.length} 件 ¥${totalAmount.value.toFixed(2)}`, duration: 4000 })
+    // 自动弹出打印预览
+    if (result?.id) {
+      try {
+        const data = await getSalePrintData(result.id)
+        printData.value = data
+        nextTick(() => { printReceiptRef.value?.open() })
+      } catch { /* print failed, non-critical */ }
+    }
     resetAll()
     nextTick(() => brandInputRef.value?.focus())
   } catch (e: any) {

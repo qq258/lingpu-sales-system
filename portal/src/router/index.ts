@@ -12,6 +12,8 @@ const routes = [
       { path: 'inventory', component: () => import('@/views/Inventory.vue'), meta: { title: '查库存' } },
       { path: 'sale', component: () => import('@/views/Sale.vue'), meta: { title: '开单' } },
       { path: 'sales-record', component: () => import('@/views/SalesRecord.vue'), meta: { title: '记录' } },
+      { path: 'after-sales', component: () => import('@/views/AfterSales.vue'), meta: { title: '售后' } },
+      { path: 'after-sales/:id', component: () => import('@/views/AfterSaleDetail.vue'), meta: { title: '售后详情' } },
       { path: 'manual', component: () => import('@/views/Manual.vue'), meta: { title: '使用手册' } },
     ],
   },

@@ -337,10 +337,11 @@ router.get('/imei-query', async (req: Request, res: Response) => {
 
 router.get('/imei-list', async (req: Request, res: Response) => {
   try {
-    const { keyword, brand_id, model_id, page = '1', pageSize = '20' } = req.query;
+    const { keyword, brand_id, model_id, status, page = '1', pageSize = '20' } = req.query;
     const storeId = getStoreId(req);
     const imeiWhere: any = {};
     if (storeId) imeiWhere.store_id = storeId;
+    if (status) imeiWhere.status = status as string;
 
     const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
     const take = parseInt(pageSize as string);

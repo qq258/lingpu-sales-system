@@ -41,6 +41,12 @@ export async function generateOrderNo(prefix: string, storeCode: string): Promis
       orderBy: { order_no: 'desc' },
       select: { order_no: true },
     });
+  } else if (prefix === 'AS') {
+    lastRecord = await prisma.after_sale_order.findFirst({
+      where: { order_no: { startsWith: baseNo } },
+      orderBy: { order_no: 'desc' },
+      select: { order_no: true },
+    });
   }
 
   let seq = 1;

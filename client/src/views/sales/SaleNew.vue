@@ -326,6 +326,8 @@ async function handleCheckout() {
       items: cartItems.value.map(i => ({
         imei: i.imei,
         unit_price: i.price,
+        imei2: i.imei2 || null,
+        sn_code: i.snCode || null,
       })),
       actual_amount: settlement.value.paidAmount,
       customer_name: settlement.value.customerName || undefined,

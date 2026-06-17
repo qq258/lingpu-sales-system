@@ -20,8 +20,12 @@
         <el-select v-model="brandFilter" placeholder="全部品牌" clearable filterable size="large" style="width:160px;" @change="onBrandFilter">
           <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
         </el-select>
-        <el-select v-model="modelFilter" placeholder="全部型号" clearable filterable size="large" style="width:200px;" :disabled="!brandFilter">
+        <el-select v-model="modelFilter" placeholder="全部型号" clearable filterable size="large" style="width:200px;" :disabled="!brandFilter" @change="doSearch">
           <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.id" />
+        </el-select>
+        <el-select v-model="statusFilter" placeholder="全部状态" clearable size="large" style="width:130px;" @change="doSearch">
+          <el-option label="在库" value="in_stock" />
+          <el-option label="已售" value="sold" />
         </el-select>
         <span class="result-count">共 {{ total }} 件商品</span>
       </div>
@@ -60,6 +64,7 @@ const brands = ref<any[]>([])
 const models = ref<any[]>([])
 const brandFilter = ref<number | undefined>()
 const modelFilter = ref<number | undefined>()
+const statusFilter = ref<string | undefined>()
 
 onMounted(async () => {
   try { brands.value = await getBrands() } catch {}
@@ -69,8 +74,9 @@ onMounted(async () => {
 
 async function onBrandFilter() {
   modelFilter.value = undefined
-  if (!brandFilter.value) { models.value = []; return }
+  if (!brandFilter.value) { models.value = []; page.value = 1; loadData(); return }
   try { models.value = await getModels(brandFilter.value) } catch { models.value = [] }
+  page.value = 1; loadData()
 }
 
 function doSearch() { page.value = 1; loadData() }
@@ -80,8 +86,9 @@ async function loadData() {
   try {
     const params: any = { page: page.value, pageSize: pageSize.value }
     if (keyword.value) params.keyword = keyword.value
-    if (brandFilter.value) params.brand_id = brandFilter.value
-    if (modelFilter.value) params.model_id = modelFilter.value
+    if (brandFilter.value) params.brandId = brandFilter.value
+    if (modelFilter.value) params.modelId = modelFilter.value
+    if (statusFilter.value) params.status = statusFilter.value
     if (userStore.effectiveStoreId) params.storeId = userStore.effectiveStoreId
     const result = await getInventoryImeiList(params)
     list.value = result.list || []; total.value = result.total || 0

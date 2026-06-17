@@ -2,10 +2,19 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import request from '@/api/request'
 
+const STORE_ID_KEY = 'portal_selectedStoreId'
+
+function getStoredStoreId(): number | null {
+  const val = localStorage.getItem(STORE_ID_KEY)
+  if (!val) return null
+  const num = parseInt(val, 10)
+  return isNaN(num) ? null : num
+}
+
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('portal_token') || '')
   const userInfo = ref<any>(null)
-  const currentStoreId = ref<number | null>(null)
+  const currentStoreId = ref<number | null>(getStoredStoreId())
   const stores = ref<any[]>([])
 
   const isLoggedIn = computed(() => !!token.value)
@@ -26,7 +35,8 @@ export const useUserStore = defineStore('user', () => {
     }
     stores.value = res.data.stores || []
     localStorage.setItem('portal_token', res.data.token)
-    if (res.data.stores && res.data.stores.length > 0) {
+    // 不在这里自动设置 currentStoreId，由登录页面根据门店数量决定是否弹出选择
+    if (res.data.stores && res.data.stores.length === 1) {
       currentStoreId.value = res.data.stores[0].id
     }
     return res.data
@@ -57,8 +67,13 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('portal_token')
   }
 
-  function setStore(storeId: number) {
+  function setStore(storeId: number | null) {
     currentStoreId.value = storeId
+    if (storeId) {
+      localStorage.setItem(STORE_ID_KEY, String(storeId))
+    } else {
+      localStorage.removeItem(STORE_ID_KEY)
+    }
   }
 
   return { token, userInfo, currentStoreId, stores, isLoggedIn, isSuperAdmin, effectiveStoreId, login, fetchUserInfo, logout, setStore }

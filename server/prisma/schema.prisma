@@ -27,6 +27,7 @@ model sys_store {
   transfers_from       wh_transfer[]       @relation("from_store")
   transfers_to         wh_transfer[]       @relation("to_store")
   operation_logs       sys_operation_log[]
+  after_sale_orders    after_sale_order[]
 }
 
 model sys_user {
@@ -49,6 +50,8 @@ model sys_user {
   transfers_outbound wh_transfer[]       @relation("outbound_operator")
   transfers_inbound  wh_transfer[]       @relation("inbound_operator")
   operation_logs     sys_operation_log[]
+  after_sale_orders  after_sale_order[]  @relation("handler")
+  after_sale_logs    after_sale_log[]    @relation("operator")
 }
 
 model sys_operation_log {
@@ -217,8 +220,9 @@ model wh_inventory_imei {
   sn_code    String?
   status     String    @default("in_stock")
   entry_id   Int?
-  sold_at    DateTime?
-  created_at DateTime  @default(now())
+  sold_at              DateTime?
+  after_sale_order_id  Int?
+  created_at           DateTime  @default(now())
 
   model pdt_model @relation(fields: [model_id], references: [id])
   store sys_store @relation(fields: [store_id], references: [id])
@@ -326,4 +330,52 @@ model wh_transfer {
   @@index([from_store_id])
   @@index([to_store_id])
   @@index([status])
+}
+
+model after_sale_order {
+  id                 Int      @id @default(autoincrement())
+  order_no           String   @unique
+  store_id           Int
+  imei_id            Int
+  customer_name      String?
+  customer_phone     String?
+  customer_address   String?
+  fault_description  String
+  detection_result   String?
+  process_type       String   @default("")
+  repair_level       String?
+  cost               Float?
+  cost_remark        String?
+  handler_id         Int
+  supplier_contact   String?
+  supplier_status    String   @default("none")
+  supplier_result    String?
+  exchange_model_id  Int?
+  exchange_imei_id   Int?
+  result             String?
+  status             String   @default("pending")
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  store    sys_store          @relation(fields: [store_id], references: [id])
+  handler  sys_user           @relation("handler", fields: [handler_id], references: [id])
+  logs     after_sale_log[]
+
+  @@index([store_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model after_sale_log {
+  id          Int      @id @default(autoincrement())
+  order_id    Int
+  action      String
+  operator_id Int?
+  content     String
+  created_at  DateTime @default(now())
+
+  order    after_sale_order @relation(fields: [order_id], references: [id])
+  operator sys_user?        @relation("operator", fields: [operator_id], references: [id])
+
+  @@index([order_id])
 }

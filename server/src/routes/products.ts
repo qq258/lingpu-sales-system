@@ -109,7 +109,7 @@ router.post('/models', async (req: Request, res: Response) => {
       return res.status(400).json(r);
     }
     const model = await prisma.pdt_model.create({
-      data: { brand_id, name, color, ram, rom, sale_price, cost_price, manufacturer_barcode, image_path, launch_year, os_type, network_type, screen_size, cpu, battery, description },
+      data: { brand_id, name, color, ram, rom, sale_price: sale_price ?? 0, cost_price, manufacturer_barcode, image_path, launch_year, os_type, network_type, screen_size, cpu, battery, description },
     });
     const r: ApiResponse = { code: 200, message: '创建成功', data: model };
     return res.json(r);
