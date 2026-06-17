@@ -31,3 +31,8 @@ export async function updateImeiInfo(id: number, data: { imei2?: string; sn_code
   const res: any = await request.put(`/inventory/imei/${id}`, data)
   return res.data
 }
+
+export async function imeiQuery(imei: string) {
+  const res: any = await request.get('/inventory/imei-query', { params: { imei } })
+  return res.data
+}

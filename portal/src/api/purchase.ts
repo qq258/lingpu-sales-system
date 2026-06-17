@@ -10,6 +10,11 @@ export async function getPurchaseEntries(params?: { page?: number; pageSize?: nu
   return res.data || { list: [], total: 0 }
 }
 
+export async function getPurchaseEntry(id: number) {
+  const res: any = await request.get(`/purchase/purchase-entries/${id}`)
+  return res.data
+}
+
 export async function quickConfirmPurchaseEntry(data: {
   supplierId?: number | null; remark?: string; storeId?: number;
   items: Array<{ modelId: number; imei: string; imei2?: string; snCode?: string; unitPrice: number }>

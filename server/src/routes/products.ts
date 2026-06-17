@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { ApiResponse } from '../types';
 import { authMiddleware } from '../middleware/auth';
+import * as XLSX from 'xlsx';
 
 const router = Router();
 
@@ -78,9 +79,15 @@ router.delete('/brands/:id', async (req: Request, res: Response) => {
 
 router.get('/models', async (req: Request, res: Response) => {
   try {
-    const { brand_id } = req.query;
+    const { brand_id, keyword } = req.query;
     const where: any = {};
     if (brand_id) where.brand_id = parseInt(brand_id as string);
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword as string } },
+        { brand: { name: { contains: keyword as string } } },
+      ];
+    }
     const models = await prisma.pdt_model.findMany({
       where,
       orderBy: { id: 'asc' },
@@ -238,6 +245,70 @@ router.get('/models/:id', async (req: Request, res: Response) => {
     }
     const r: ApiResponse = { code: 200, message: 'success', data: model };
     return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 导出品牌
+router.get('/brands/export', async (req: Request, res: Response) => {
+  try {
+    const brands = await prisma.pdt_brand.findMany({
+      include: { _count: { select: { models: true } } },
+      orderBy: { id: 'asc' },
+    });
+    const data = brands.map((r) => ({
+      '编号': r.id,
+      '品牌名称': r.name,
+      '描述': r.description || '',
+      '型号数量': r._count?.models || 0,
+      '状态': r.status === 1 ? '启用' : '禁用',
+      '创建时间': r.created_at?.toISOString().slice(0, 16).replace('T', ' ') || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = Object.keys(data[0] || {}).map((k) => ({ wch: Math.max(k.length * 2, 12) }));
+    XLSX.utils.book_append_sheet(wb, ws, '品牌');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=brands_${dateStr}.xlsx`);
+    res.send(buffer);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 导出型号
+router.get('/models/export', async (req: Request, res: Response) => {
+  try {
+    const models = await prisma.pdt_model.findMany({
+      include: { brand: { select: { name: true } } },
+      orderBy: { id: 'asc' },
+    });
+    const data = models.map((r) => ({
+      '编号': r.id,
+      '品牌': r.brand?.name || '',
+      '型号名称': r.name,
+      '颜色': r.color || '',
+      'RAM': r.ram || '',
+      'ROM': r.rom || '',
+      '售价': r.sale_price || 0,
+      '成本价': r.cost_price || 0,
+      '条码': r.manufacturer_barcode || '',
+      '状态': r.status === 1 ? '启用' : '禁用',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = Object.keys(data[0] || {}).map((k) => ({ wch: Math.max(k.length * 2, 12) }));
+    XLSX.utils.book_append_sheet(wb, ws, '型号');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=models_${dateStr}.xlsx`);
+    res.send(buffer);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };
     return res.status(500).json(r);

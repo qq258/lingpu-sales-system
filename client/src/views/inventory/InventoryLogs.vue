@@ -25,6 +25,10 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <span>查询</span>
             </button>
+            <button class="pbm-btn-plain" @click="handleExport">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>导出 Excel</span>
+            </button>
           </div>
           <span class="pbm-section-count">{{ total }} 条记录</span>
         </div>
@@ -77,6 +81,7 @@
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { getInventoryLogs } from '@/api/inventory'
+import { exportWithQuery } from '@/api/tools'
 
 const userStore = useUserStore()
 
@@ -98,6 +103,12 @@ const changeTypeMap: Record<string, string> = {
 
 function changeTypeLabel(type: string) {
   return changeTypeMap[type] || type
+}
+
+function handleExport() {
+  exportWithQuery('/inventory/logs/export', {
+    changeType: searchType.value || undefined,
+  })
 }
 
 async function loadLogs() {

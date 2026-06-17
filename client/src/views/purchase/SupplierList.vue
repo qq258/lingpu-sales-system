@@ -5,10 +5,16 @@
         <h1 class="pbm-title">供应商管理</h1>
         <span class="pbm-subtitle">Supplier Management</span>
       </div>
-      <button class="pbm-btn-accent" @click="openDialog()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>新增供应商</span>
-      </button>
+      <div style="display:flex;gap:8px;">
+        <button class="pbm-btn-plain" @click="handleExport">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>导出 Excel</span>
+        </button>
+        <button class="pbm-btn-accent" @click="openDialog()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>新增供应商</span>
+        </button>
+      </div>
     </header>
 
     <div class="pbm-body">
@@ -85,6 +91,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '@/api/purchase'
 import type { SupplierData } from '@/api/purchase'
+import { exportWithQuery } from '@/api/tools'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -114,6 +121,10 @@ const filteredSuppliers = computed(() => {
 })
 
 function onSearch() {}
+
+function handleExport() {
+  exportWithQuery('/purchase/suppliers/export', { keyword: searchKeyword.value })
+}
 
 async function loadSuppliers() {
   loading.value = true

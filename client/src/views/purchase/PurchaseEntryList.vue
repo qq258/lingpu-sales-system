@@ -27,6 +27,10 @@
               </el-select>
             </div>
             <button class="pbm-btn-accent pbm-btn-accent--sm" @click="loadEntries">查询</button>
+            <button class="pbm-btn-plain pbm-btn-plain--sm" @click="handleExport">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>导出 Excel</span>
+            </button>
           </div>
           <span class="pbm-section-count">{{ total }} 条记录</span>
         </div>
@@ -153,6 +157,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getSuppliers, getPurchaseEntries, getPurchaseEntry, deletePurchaseEntry } from '@/api/purchase'
 import type { SupplierData } from '@/api/purchase'
+import { exportWithQuery } from '@/api/tools'
 
 const emit = defineEmits<{ addEntry: [] }>()
 
@@ -175,6 +180,13 @@ function formatDate(dateStr: string) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function handleExport() {
+  exportWithQuery('/tools/export/purchase_entries', {
+    supplierId: searchSupplierId.value || undefined,
+    status: searchStatus.value || undefined,
+  })
 }
 
 async function loadSuppliers() {

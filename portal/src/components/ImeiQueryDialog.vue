@@ -40,21 +40,48 @@
                 </div>
               </div>
 
-              <div v-if="saleRecords.length" class="result-section">
-                <h4 class="result-section-title">销售记录</h4>
-                <div v-for="r in saleRecords" :key="r.id" class="record-line">
-                  <span class="record-no">{{ r.order_no }}</span>
-                  <span class="record-date">{{ formatTime(r.created_at) }}</span>
-                  <span class="record-amount">¥{{ (r.actual_amount || 0).toFixed(2) }}</span>
+              <!-- 入库记录 -->
+              <div v-if="result.entryRecord" class="result-section">
+                <h4 class="result-section-title">入库记录</h4>
+                <div class="info-grid">
+                  <div class="info-item"><span class="info-label">入库单号</span><span class="info-value mono">{{ result.entryRecord.entry_no || '-' }}</span></div>
+                  <div class="info-item"><span class="info-label">供应商</span><span class="info-value">{{ result.entryRecord.supplierName || '-' }}</span></div>
+                  <div class="info-item"><span class="info-label">入库时间</span><span class="info-value">{{ formatTime(result.entryRecord.created_at) }}</span></div>
                 </div>
               </div>
 
-              <div v-if="entryRecords.length" class="result-section">
-                <h4 class="result-section-title">入库记录</h4>
-                <div v-for="r in entryRecords" :key="r.id" class="record-line">
-                  <span class="record-no">{{ r.entry_no }}</span>
-                  <span class="record-date">{{ formatTime(r.created_at) }}</span>
-                  <span class="record-supplier">{{ r.supplier?.name || '-' }}</span>
+              <!-- 销售记录（仅已售） -->
+              <div v-if="result.saleRecord" class="result-section">
+                <h4 class="result-section-title">销售记录</h4>
+                <div class="info-grid">
+                  <div class="info-item"><span class="info-label">订单号</span><span class="info-value mono">{{ result.saleRecord.order_no || '-' }}</span></div>
+                  <div class="info-item"><span class="info-label">售出门店</span><span class="info-value">{{ result.saleRecord.storeName || '-' }}</span></div>
+                  <div class="info-item"><span class="info-label">售出时间</span><span class="info-value">{{ formatTime(result.saleRecord.created_at) }}</span></div>
+                  <div class="info-item"><span class="info-label">应收金额</span><span class="info-value">¥{{ (result.saleRecord.total_amount || 0).toFixed(2) }}</span></div>
+                  <div class="info-item"><span class="info-label">实收金额</span><span class="info-value">¥{{ (result.saleRecord.actual_amount || 0).toFixed(2) }}</span></div>
+                  <div class="info-item"><span class="info-label">找零</span><span class="info-value">¥{{ (result.saleRecord.change_amount || 0).toFixed(2) }}</span></div>
+                  <div class="info-item"><span class="info-label">客户</span><span class="info-value">{{ result.saleRecord.customer_name || '-' }}</span></div>
+                  <div class="info-item">
+                    <span class="info-label">电话</span>
+                    <span class="info-value">
+                      <template v-if="result.saleRecord.customer_phone">
+                        {{ showPhone ? result.saleRecord.customer_phone : maskPhone(result.saleRecord.customer_phone) }}
+                        <button class="privacy-toggle" @click="showPhone = !showPhone">{{ showPhone ? '隐藏' : '显示详情' }}</button>
+                      </template>
+                      <template v-else>-</template>
+                    </span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">地址</span>
+                    <span class="info-value">
+                      <template v-if="result.saleRecord.customer_address">
+                        {{ showAddress ? result.saleRecord.customer_address : maskAddress(result.saleRecord.customer_address) }}
+                        <button class="privacy-toggle" @click="showAddress = !showAddress">{{ showAddress ? '隐藏' : '显示详情' }}</button>
+                      </template>
+                      <template v-else>-</template>
+                    </span>
+                  </div>
+                  <div class="info-item"><span class="info-label">收银员</span><span class="info-value">{{ result.saleRecord.operatorName || '-' }}</span></div>
                 </div>
               </div>
             </div>
@@ -67,7 +94,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
-import { scanImeiForSale } from '@/api/inventory'
+import { imeiQuery } from '@/api/inventory'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ 'update:visible': [boolean] }>()
@@ -77,16 +104,16 @@ const imeiInput = ref('')
 const queryLoading = ref(false)
 const queryError = ref('')
 const result = ref<any>(null)
-const saleRecords = ref<any[]>([])
-const entryRecords = ref<any[]>([])
+const showPhone = ref(false)
+const showAddress = ref(false)
 
 watch(() => props.visible, (v) => {
   if (v) {
     imeiInput.value = ''
     result.value = null
-    saleRecords.value = []
-    entryRecords.value = []
     queryError.value = ''
+    showPhone.value = false
+    showAddress.value = false
     nextTick(() => queryRef.value?.focus())
   }
 })
@@ -99,13 +126,12 @@ async function handleQuery() {
   const imei = imeiInput.value.trim()
   if (!imei) { queryError.value = '请输入 IMEI'; return }
   queryLoading.value = true; queryError.value = ''
+  showPhone.value = false
+  showAddress.value = false
   try {
-    const data = await scanImeiForSale(imei)
+    const data = await imeiQuery(imei)
     if (!data) { queryError.value = '未找到该 IMEI 对应的记录'; result.value = null; return }
     result.value = data
-    // TODO: 后续可扩展查询该 IMEI 的销售记录和入库记录
-    saleRecords.value = []
-    entryRecords.value = []
   } catch (e: any) {
     queryError.value = e?.response?.data?.message || e?.message || '查询失败'
     result.value = null
@@ -117,6 +143,17 @@ async function handleQuery() {
 function formatTime(t: string) {
   if (!t) return ''
   return t.slice(0, 16).replace('T', ' ')
+}
+
+function maskPhone(phone: string) {
+  if (!phone || phone.length < 7) return phone || '-'
+  return phone.slice(0, 3) + '****' + phone.slice(-4)
+}
+
+function maskAddress(addr: string) {
+  if (!addr) return '-'
+  if (addr.length <= 3) return addr + '****'
+  return addr.slice(0, 3) + '****'
 }
 </script>
 
@@ -154,6 +191,8 @@ function formatTime(t: string) {
 .record-date { font-size: 13px; color: var(--text-tertiary); }
 .record-amount { margin-left: auto; font-weight: 600; font-family: monospace; }
 .record-supplier { margin-left: auto; font-size: 13px; color: var(--text-secondary); }
+.privacy-toggle { font-size: 12px; color: var(--primary); background: none; border: none; cursor: pointer; padding: 0 4px; font-family: inherit; text-decoration: underline dashed; text-underline-offset: 2px; }
+.privacy-toggle:hover { color: var(--primary-dark); }
 
 .dialog-enter-active { transition: all 0.2s ease; }
 .dialog-leave-active { transition: all 0.15s ease; }

@@ -13,6 +13,10 @@
           <div class="pbm-search-group">
             <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" />
             <button class="pbm-btn-accent" @click="loadSales">查询</button>
+            <button class="pbm-btn-plain" @click="handleExport">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>导出 Excel</span>
+            </button>
           </div>
         </div>
 
@@ -120,6 +124,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getSales, getSale, getSalePrintData, deleteSale } from '@/api/sales'
 import PrintReceipt from '@/components/PrintReceipt.vue'
+import { exportWithQuery } from '@/api/tools'
 
 const userStore = useUserStore()
 const printReceiptRef = ref()
@@ -134,6 +139,14 @@ const dateRange = ref<string[] | null>(null)
 const detailVisible = ref(false)
 const detailData = ref<any>(null)
 const printData = ref<any>(null)
+
+function handleExport() {
+  exportWithQuery('/sales/sales/export', {
+    startDate: dateRange.value?.[0] || undefined,
+    endDate: dateRange.value?.[1] || undefined,
+    storeId: userStore.effectiveStoreId || undefined,
+  })
+}
 
 async function loadSales() {
   loading.value = true

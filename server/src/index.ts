@@ -13,6 +13,7 @@ import transferRoutes from './routes/transfers';
 import saleRoutes from './routes/sales';
 import statsRoutes from './routes/stats';
 import uploadRoutes from './routes/upload';
+import toolsRoutes from './routes/tools';
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use('/api/v1/transfers', transferRoutes);
 app.use('/api/v1/sales', saleRoutes);
 app.use('/api/v1/stats', statsRoutes);
 app.use('/api/v1/upload', uploadRoutes);
+app.use('/api/v1/tools', toolsRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ code: 200, message: 'ok', data: { time: new Date().toISOString() } });

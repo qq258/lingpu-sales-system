@@ -6,3 +6,6 @@ data/database.sqlite
 .DS_Store
 *.log
 .pnpm-store/
+.deploy-temp/
+.empty-delete/
+release/

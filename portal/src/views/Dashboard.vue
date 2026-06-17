@@ -100,68 +100,69 @@
       <div v-else class="cart-empty">扫码添加商品开始开单</div>
     </div>
 
-    <!-- 数据网格 -->
-    <div class="data-grid">
-      <!-- 左侧 -->
-      <div class="data-grid-left">
-        <!-- 趋势图 -->
-        <div class="data-card glass">
-          <div class="data-card-header">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            销售额趋势
-          </div>
-          <div class="data-card-body" style="height:180px;">
-            <LineChart :data="trendData" color="#2563EB" height="180px" />
-          </div>
-        </div>
+    <!-- 统计时段选择 -->
+    <div class="time-range-bar">
+      <el-select v-model="timeRange" size="large" style="width:150px;">
+        <el-option label="最近3个月" value="3m" />
+        <el-option label="本月" value="thisMonth" />
+        <el-option label="本年" value="thisYear" />
+      </el-select>
+      <span class="time-range-text">{{ timeRangeLabel }}</span>
+    </div>
 
-        <!-- 品牌库存 -->
-        <div class="data-card glass">
-          <div class="data-card-header">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-            品牌库存
-          </div>
-          <div class="brand-cards">
-            <div v-for="b in brandStockList" :key="b.name" class="brand-card">
-              <span class="brand-name">{{ b.name }}</span>
-              <span class="brand-qty">{{ b.qty }} 台</span>
-            </div>
-            <div v-if="!brandStockList.length" class="empty-data">暂无库存数据</div>
-          </div>
-        </div>
-
+    <!-- 销售额趋势（全宽） -->
+    <div class="data-card glass" style="margin-bottom:20px;">
+      <div class="data-card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        销售额趋势
       </div>
+      <div class="data-card-body" style="height:200px;">
+        <LineChart :data="trendData" color="#2563EB" height="200px" />
+      </div>
+    </div>
 
-      <!-- 右侧：排行 -->
-      <div class="data-grid-right">
-        <div class="data-card glass" style="height:100%;">
-          <div class="data-card-header">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            售出排行
+    <!-- 双列：品牌库存 + 售出排行 -->
+    <div class="data-grid-2col">
+      <div class="data-card glass">
+        <div class="data-card-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          品牌库存
+        </div>
+        <div class="brand-cards">
+          <div v-for="b in brandStockList" :key="b.name" class="brand-card">
+            <span class="brand-name">{{ b.name }}</span>
+            <span class="brand-qty">{{ b.qty }} 台</span>
           </div>
-          <div class="data-card-body" style="flex:1;">
-            <HorizontalBarChart :data="topProductsData" color="#F97316" />
-          </div>
+          <div v-if="!brandStockList.length" class="empty-data">暂无库存数据</div>
+        </div>
+      </div>
+      <div class="data-card glass">
+        <div class="data-card-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          售出排行
+        </div>
+        <div class="data-card-body" style="min-height:200px;">
+          <HorizontalBarChart :data="topProductsData" color="#F97316" />
         </div>
       </div>
     </div>
 
-    <!-- 双列记录（独立一行） -->
+    <!-- 双列记录 -->
     <div class="dual-records">
       <div class="data-card glass">
         <div class="data-card-header">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          今日售出
+          最近售出
         </div>
         <div class="record-list">
-          <div v-for="ord in recentOrders" :key="ord.orderNo || ord.order_no" class="record-item">
+          <div v-for="sale in recentSales" :key="sale.id || sale.order_no" class="record-item">
             <div class="record-left">
               <svg width="5" height="5" viewBox="0 0 5 5"><circle cx="2.5" cy="2.5" r="2.5" fill="#F97316"/></svg>
-              <span class="record-info">{{ ord.orderNo || ord.order_no || '' }}</span>
+              <span class="record-sale-link" @click="openSaleDetail(sale.id)">售出 {{ saleItemName(sale) }} x {{ sale.quantity || 1 }}</span>
             </div>
-            <span class="record-amount">¥{{ (ord.totalAmount || 0).toFixed(2) }}</span>
+            <span class="record-date">{{ formatDate(sale.created_at) }}</span>
           </div>
-          <div v-if="!recentOrders.length" class="empty-data">暂无售出记录</div>
+          <div v-if="!recentSales.length" class="empty-data">暂无售出记录</div>
         </div>
       </div>
       <div class="data-card glass">
@@ -173,14 +174,97 @@
           <div v-for="e in recentEntries" :key="e.id" class="record-item">
             <div class="record-left">
               <svg width="5" height="5" viewBox="0 0 5 5"><circle cx="2.5" cy="2.5" r="2.5" fill="#3B82F6"/></svg>
-              <span class="record-info">{{ e.entry_no || '' }}</span>
+              <span class="record-supplier-link" @click="openEntryDetail(e.id)">{{ e.supplier?.name || '未知供应商' }}</span>
             </div>
-            <span class="record-qty">x{{ e._count?.items || e.itemCount || 0 }}</span>
+            <span class="record-date">{{ formatDate(e.created_at) }}</span>
           </div>
           <div v-if="!recentEntries.length" class="empty-data">暂无入库记录</div>
         </div>
       </div>
     </div>
+
+    <!-- 入库详情弹窗 -->
+    <el-dialog v-model="entryDetailVisible" title="入库详情" width="700px" :close-on-click-modal="false" class="entry-detail-dialog">
+      <template v-if="entryDetailData">
+        <div class="entry-detail-info">
+          <div class="entry-detail-row">
+            <span class="entry-detail-label">供应商</span>
+            <span class="entry-detail-value">{{ entryDetailData.supplier?.name || '-' }}</span>
+          </div>
+          <div class="entry-detail-row">
+            <span class="entry-detail-label">入库时间</span>
+            <span class="entry-detail-value">{{ formatDateTime(entryDetailData.created_at) }}</span>
+          </div>
+          <div class="entry-detail-row" v-if="entryDetailData.remark">
+            <span class="entry-detail-label">备注</span>
+            <span class="entry-detail-value">{{ entryDetailData.remark }}</span>
+          </div>
+        </div>
+        <div class="entry-detail-items-head">入库商品明细</div>
+        <el-table :data="entryDetailData?.items || []" stripe size="small" max-height="300">
+          <el-table-column label="商品" min-width="200">
+            <template #default="{ row }">
+              <span class="entry-model-cell">
+                <span class="entry-model-brand">{{ row.model?.brand?.name }}</span>
+                {{ row.model?.name }} {{ row.model?.color || '' }} {{ [row.model?.ram, row.model?.rom].filter(Boolean).join('/') }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="IMEI" width="150" prop="imei" />
+          <el-table-column label="IMEI2" width="130">
+            <template #default="{ row }">{{ row.imei2 || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="S/N" width="120">
+            <template #default="{ row }">{{ row.sn_code || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="单价" width="90" align="right">
+            <template #default="{ row }">¥{{ (row.unit_price || 0).toFixed(2) }}</template>
+          </el-table-column>
+        </el-table>
+      </template>
+      <template #footer>
+        <button class="dialog-close-btn" @click="entryDetailVisible = false">关闭</button>
+      </template>
+    </el-dialog>
+
+    <!-- 销售详情弹窗 -->
+    <el-dialog v-model="saleDetailVisible" title="销售详情" width="700px" :close-on-click-modal="false" class="entry-detail-dialog">
+      <template v-if="saleDetailData">
+        <div class="entry-detail-info">
+          <div class="entry-detail-row">
+            <span class="entry-detail-label">订单号</span>
+            <span class="entry-detail-value">{{ saleDetailData.order_no }}</span>
+          </div>
+          <div class="entry-detail-row">
+            <span class="entry-detail-label">售出时间</span>
+            <span class="entry-detail-value">{{ formatDateTime(saleDetailData.created_at) }}</span>
+          </div>
+          <div class="entry-detail-row">
+            <span class="entry-detail-label">合计金额</span>
+            <span class="entry-detail-value">¥{{ (saleDetailData.total_amount || 0).toFixed(2) }}</span>
+          </div>
+          <div class="entry-detail-row" v-if="saleDetailData.customer_name">
+            <span class="entry-detail-label">客户</span>
+            <span class="entry-detail-value">{{ saleDetailData.customer_name }}{{ saleDetailData.customer_phone ? ' / ' + saleDetailData.customer_phone : '' }}</span>
+          </div>
+        </div>
+        <div class="entry-detail-items-head">售出商品明细</div>
+        <el-table :data="saleDetailData?.items || []" stripe size="small" max-height="300">
+          <el-table-column label="商品" min-width="200">
+            <template #default="{ row }">
+              <span class="entry-model-cell">{{ saleItemName(saleDetailData) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="IMEI" width="180" prop="imei" />
+          <el-table-column label="售价" width="100" align="right">
+            <template #default="{ row }">¥{{ (row.unit_price || 0).toFixed(2) }}</template>
+          </el-table-column>
+        </el-table>
+      </template>
+      <template #footer>
+        <button class="dialog-close-btn" @click="saleDetailVisible = false">关闭</button>
+      </template>
+    </el-dialog>
 
     <!-- 确认收款弹窗 -->
     <ConfirmDialog
@@ -203,9 +287,9 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { scanImeiForSale, getBrandInventory } from '@/api/inventory'
-import { getPurchaseEntries } from '@/api/purchase'
+import { getPurchaseEntries, getPurchaseEntry } from '@/api/purchase'
 import { getDashboard, getSalesStats, getTopProducts } from '@/api/stats'
-import { createSale, getSalePrintData } from '@/api/sales'
+import { createSale, getSalePrintData, getSalesList, getSaleDetail } from '@/api/sales'
 import LineChart from '@/components/LineChart.vue'
 import HorizontalBarChart from '@/components/HorizontalBarChart.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -214,6 +298,40 @@ import PrintReceipt from '@/components/PrintReceipt.vue'
 
 const userStore = useUserStore()
 const scanRef = ref<HTMLInputElement>()
+
+// 时间范围
+const timeRangeLabel = computed(() => {
+  const range = getDateRange()
+  if (!range.start_date) return '全部时间'
+  return `${range.start_date} ~ ${range.end_date}`
+})
+
+function formatTime(iso: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function formatDate(iso: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function formatDateTime(iso: string) {
+  if (!iso) return ''
+  return `${formatDate(iso)} ${formatTime(iso)}`
+}
+
+function saleItemName(sale: any) {
+  const brand = sale.model?.brand?.name || ''
+  const model = sale.model?.name || ''
+  return [brand, model].filter(Boolean).join(' ') || '手机'
+}
 
 // 开单
 const scanInput = ref('')
@@ -242,8 +360,33 @@ const timeRange = ref('3m')
 const trendRaw = ref<any[]>([])
 const topRaw = ref<any[]>([])
 const recentOrders = ref<any[]>([])
+const recentSales = ref<any[]>([])
 const brandStockRaw = ref<any[]>([])
 const recentEntries = ref<any[]>([])
+
+// 入库详情弹窗
+const entryDetailVisible = ref(false)
+const entryDetailData = ref<any>(null)
+
+async function openEntryDetail(id: number) {
+  try {
+    const data = await getPurchaseEntry(id)
+    entryDetailData.value = data
+    entryDetailVisible.value = true
+  } catch { /* handled by interceptor */ }
+}
+
+// 销售详情弹窗
+const saleDetailVisible = ref(false)
+const saleDetailData = ref<any>(null)
+
+async function openSaleDetail(id: number) {
+  try {
+    const data = await getSaleDetail(id)
+    saleDetailData.value = data
+    saleDetailVisible.value = true
+  } catch { /* handled by interceptor */ }
+}
 
 const trendData = computed(() => trendRaw.value.map((i: any) => ({ label: (i.date || '').slice(5), value: i.totalAmount || i.amount || 0 })))
 const topProductsData = computed(() => topRaw.value.map((i: any) => ({ label: i.modelName || '', value: i.quantity || 0 })))
@@ -274,7 +417,17 @@ async function loadAll() {
     const d = await getDashboard(storeId)
     recentOrders.value = d?.recentOrders || []
   } catch {}
-  await loadAllDataOnly()
+  await Promise.all([
+    loadAllDataOnly(),
+    loadRecentSales(),
+  ])
+}
+
+async function loadRecentSales() {
+  try {
+    const res = await getSalesList({ page: 1, pageSize: 5, storeId: userStore.effectiveStoreId || undefined })
+    recentSales.value = res?.list || []
+  } catch { recentSales.value = [] }
 }
 
 async function loadAllDataOnly() {
@@ -417,11 +570,12 @@ async function handlePay() {
 .pay-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 56px; border: none; border-radius: var(--radius); background: var(--success); color: #fff; font-size: 20px; font-weight: 700; cursor: pointer; font-family: inherit; transition: var(--transition); }
 .pay-btn:hover { filter: brightness(0.92); box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
 
-/* 数据网格 */
-.data-grid { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
-.data-grid-left { display: flex; flex-direction: column; gap: 20px; }
-.data-grid-right { display: flex; }
-.data-grid-right > .data-card { flex: 1; min-height: 0; }
+/* 统计时段 */
+.time-range-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.time-range-text { font-size: 13px; color: var(--text-tertiary); font-family: monospace; }
+
+/* 双列网格 */
+.data-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
 .data-card { padding: 20px 22px; border-radius: var(--radius); display: flex; flex-direction: column; }
 .data-card-header { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
 .data-card-body { flex: 1; }
@@ -438,7 +592,13 @@ async function handlePay() {
 .record-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .record-item:last-child { border-bottom: none; }
 .record-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.record-info { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record-time { font-size: 13px; color: var(--text); font-family: monospace; font-weight: 500; white-space: nowrap; }
+.record-supplier-link { font-size: 14px; color: var(--primary); font-weight: 500; cursor: pointer; text-decoration: none; transition: var(--transition); }
+.record-supplier-link:hover { text-decoration: underline; color: var(--primary-dark); }
+.record-sale-link { font-size: 14px; color: var(--primary); font-weight: 500; cursor: pointer; text-decoration: none; transition: var(--transition); }
+.record-sale-link:hover { text-decoration: underline; color: var(--primary-dark); }
+.record-sale-text { font-size: 14px; color: var(--text); font-weight: 500; }
+.record-date { font-size: 12px; color: var(--text-tertiary); font-family: monospace; flex-shrink: 0; }
 .record-amount { font-size: 14px; font-weight: 600; color: var(--text); font-family: monospace; flex-shrink: 0; }
 .record-qty { font-size: 14px; font-weight: 600; color: var(--primary); font-family: monospace; flex-shrink: 0; }
 .empty-data { font-size: 13px; color: var(--text-tertiary); padding: 12px 0; text-align: center; }
@@ -449,8 +609,24 @@ async function handlePay() {
 :deep(.el-input__inner) { font-size: 15px; }
 :deep(.el-input-number .el-input__inner) { font-size: 15px; font-weight: 600; }
 
+/* 入库详情弹窗 */
+:deep(.entry-detail-dialog .el-dialog) { border-radius: 10px; }
+:deep(.entry-detail-dialog .el-dialog__header) { padding: 16px 24px; border-bottom: 1px solid var(--border); margin: 0; }
+:deep(.entry-detail-dialog .el-dialog__title) { font-size: 16px; font-weight: 600; }
+:deep(.entry-detail-dialog .el-dialog__body) { padding: 20px 24px; }
+:deep(.entry-detail-dialog .el-dialog__footer) { padding: 12px 24px 16px; border-top: 1px solid var(--border); }
+.entry-detail-info { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 16px; }
+.entry-detail-row { display: flex; background: #fff; padding: 10px 14px; align-items: center; }
+.entry-detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-tertiary); font-weight: 600; width: 80px; flex-shrink: 0; }
+.entry-detail-value { font-size: 13px; color: var(--text); }
+.entry-detail-items-head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+.entry-model-cell { display: flex; align-items: center; gap: 4px; }
+.entry-model-brand { display: inline-block; padding: 1px 6px; background: var(--primary-light); color: var(--primary); border-radius: 3px; font-size: 11px; font-weight: 600; }
+.dialog-close-btn { padding: 8px 24px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--text-secondary); font-size: 13px; cursor: pointer; font-family: inherit; }
+.dialog-close-btn:hover { border-color: var(--text-tertiary); color: var(--text); }
+
 @media (max-width: 1100px) {
-  .data-grid { grid-template-columns: 1fr; }
+  .data-grid-2col { grid-template-columns: 1fr; }
   .quick-bar-row { grid-template-columns: repeat(2, 1fr); }
   .brand-cards { grid-template-columns: repeat(3, 1fr); }
   .dual-records { grid-template-columns: 1fr; }

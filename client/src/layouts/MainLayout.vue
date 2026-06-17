@@ -70,6 +70,11 @@
           <el-menu-item index="/sales/list">销售记录</el-menu-item>
         </el-sub-menu>
 
+        <el-menu-item index="/tools">
+          <el-icon><Tools /></el-icon>
+          <template #title>数据工具</template>
+        </el-menu-item>
+
         <el-menu-item index="/system/user" v-if="userStore.isSuperAdmin || userStore.userInfo?.role === 'store_admin'">
           <el-icon><User /></el-icon>
           <template #title>用户管理</template>

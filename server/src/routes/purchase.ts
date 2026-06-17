@@ -4,6 +4,7 @@ import { ApiResponse } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { storeScopeMiddleware } from '../middleware/store-scope';
 import { generateOrderNo } from '../utils/order-no';
+import * as XLSX from 'xlsx';
 
 const router = Router();
 
@@ -91,6 +92,44 @@ router.delete('/suppliers/:id', async (req: Request, res: Response) => {
     await prisma.pch_supplier.delete({ where: { id } });
     const r: ApiResponse = { code: 200, message: '删除成功' };
     return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 导出供应商
+router.get('/suppliers/export', async (req: Request, res: Response) => {
+  try {
+    const { keyword } = req.query;
+    const where: any = {};
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword as string } },
+        { contact_person: { contains: keyword as string } },
+        { phone: { contains: keyword as string } },
+      ];
+    }
+    const suppliers = await prisma.pch_supplier.findMany({ where, orderBy: { id: 'desc' } });
+    const data = suppliers.map((r) => ({
+      '编号': r.id,
+      '供应商名称': r.name,
+      '联系人': r.contact_person || '',
+      '联系电话': r.phone || '',
+      '地址': r.address || '',
+      '备注': r.remark || '',
+      '状态': r.status === 1 ? '启用' : '禁用',
+      '创建时间': r.created_at?.toISOString().slice(0, 16).replace('T', ' ') || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = Object.keys(data[0] || {}).map((k) => ({ wch: Math.max(k.length * 2, 12) }));
+    XLSX.utils.book_append_sheet(wb, ws, '供应商');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=suppliers_${dateStr}.xlsx`);
+    res.send(buffer);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };
     return res.status(500).json(r);

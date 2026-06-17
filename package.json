@@ -6,9 +6,11 @@
   "scripts": {
     "dev:client": "pnpm --filter @phone-sales/client dev",
     "dev:server": "pnpm --filter @phone-sales/server dev",
+    "dev:portal": "pnpm --filter @phone-sales/portal dev",
     "dev": "pnpm run /^dev:.*/",
     "build:client": "pnpm --filter @phone-sales/client build",
     "build:server": "pnpm --filter @phone-sales/server build",
+    "build:portal": "pnpm --filter @phone-sales/portal build",
     "build": "pnpm run /^build:.*/",
     "prisma:generate": "pnpm --filter @phone-sales/server prisma:generate",
     "prisma:push": "pnpm --filter @phone-sales/server prisma:push",

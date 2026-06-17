@@ -27,6 +27,7 @@ const routes = [
       { path: 'transfer/new', component: () => import('@/views/transfer/TransferNew.vue'), meta: { title: '发起调货' } },
       { path: 'sales/new', component: () => import('@/views/sales/SaleNew.vue'), meta: { title: '销售开单' } },
       { path: 'sales/list', component: () => import('@/views/sales/SaleList.vue'), meta: { title: '销售记录' } },
+      { path: 'tools', component: () => import('@/views/tools/DataTools.vue'), meta: { title: '数据工具' } },
       { path: 'system/user', component: () => import('@/views/system/UserList.vue'), meta: { title: '用户管理', roles: ['super_admin', 'store_admin'] } },
     ],
   },

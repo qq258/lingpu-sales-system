@@ -25,6 +25,10 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <span>查询</span>
             </button>
+            <button class="pbm-btn-plain" @click="handleExport">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>导出 Excel</span>
+            </button>
           </div>
           <span class="pbm-section-count">{{ total }} 条记录</span>
         </div>
@@ -75,6 +79,7 @@ import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { getInventoryImeiList } from '@/api/inventory'
 import { getBrands, getModels } from '@/api/product'
+import { exportWithQuery } from '@/api/tools'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -87,6 +92,14 @@ const searchBrandId = ref<number | undefined>()
 const searchModelId = ref<number | undefined>()
 const brands = ref<any[]>([])
 const models = ref<any[]>([])
+
+function handleExport() {
+  exportWithQuery('/inventory/export', {
+    keyword: searchKeyword.value || undefined,
+    brand_id: searchBrandId.value || undefined,
+    model_id: searchModelId.value || undefined,
+  })
+}
 
 async function loadImeiList() {
   loading.value = true
@@ -192,6 +205,21 @@ onMounted(() => {
 .pbm-btn-accent:hover { background: #dba84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,149,60,0.3); }
 .pbm-btn-accent:active { transform: translateY(0); }
 .pbm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.pbm-btn-plain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: transparent;
+  color: #8a7f72;
+  border: 1px solid #e5ddd3;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pbm-btn-plain:hover { color: #2c2418; border-color: #8a7f72; }
 
 .pbm-body {
   flex: 1;

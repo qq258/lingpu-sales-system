@@ -234,6 +234,107 @@ router.get('/scan-imei', async (req: Request, res: Response) => {
   }
 });
 
+// IMEI 完整信息查询（追踪链路）
+router.get('/imei-query', async (req: Request, res: Response) => {
+  try {
+    const { imei } = req.query;
+    if (!imei) {
+      const r: ApiResponse = { code: 400, message: 'IMEI不能为空' };
+      return res.status(400).json(r);
+    }
+
+    // 1. 查询 IMEI 基础信息
+    const record = await prisma.wh_inventory_imei.findUnique({
+      where: { imei: imei as string },
+      include: {
+        model: {
+          include: { brand: { select: { id: true, name: true } } },
+        },
+        store: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!record) {
+      const r: ApiResponse = { code: 404, message: '未找到该 IMEI 对应的记录' };
+      return res.status(404).json(r);
+    }
+
+    // 2. 查询入库记录（通过 entry_id）
+    let entryRecord = null;
+    if (record.entry_id) {
+      const entry = await prisma.pch_purchase_entry.findUnique({
+        where: { id: record.entry_id },
+        include: {
+          supplier: { select: { id: true, name: true } },
+        },
+      });
+      if (entry) {
+        entryRecord = {
+          entry_no: entry.entry_no,
+          supplierName: entry.supplier?.name || '-',
+          created_at: entry.created_at,
+        };
+      }
+    }
+
+    // 3. 查询销售记录（已售状态下通过 sale_order_item 关联）
+    let saleRecord = null;
+    if (record.status === 'sold') {
+      const saleItem = await prisma.sale_order_item.findFirst({
+        where: { imei: imei as string },
+        include: {
+          sale_order: {
+            include: {
+              store: { select: { id: true, name: true } },
+              operator: { select: { id: true, real_name: true } },
+            },
+          },
+        },
+      });
+      if (saleItem && saleItem.sale_order) {
+        const order = saleItem.sale_order;
+        saleRecord = {
+          order_no: order.order_no,
+          storeName: order.store?.name || '-',
+          created_at: order.created_at,
+          total_amount: order.total_amount,
+          actual_amount: order.actual_amount,
+          change_amount: order.change_amount,
+          customer_name: order.customer_name || '-',
+          customer_phone: order.customer_phone || '',
+          customer_address: order.customer_address || '',
+          operatorName: order.operator?.real_name || '-',
+        };
+      }
+    }
+
+    const r: ApiResponse = {
+      code: 200,
+      message: 'success',
+      data: {
+        id: record.id,
+        modelId: record.model_id,
+        imei: record.imei,
+        imei2: record.imei2,
+        sn_code: record.sn_code,
+        brandName: record.model?.brand?.name || '',
+        modelName: record.model?.name || '',
+        color: record.model?.color || '',
+        storage: [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '',
+        salePrice: record.model?.sale_price || 0,
+        storeName: record.store?.name || '',
+        status: record.status,
+        entryRecord,
+        saleRecord,
+      },
+    };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
 router.get('/imei-list', async (req: Request, res: Response) => {
   try {
     const { keyword, brand_id, model_id, page = '1', pageSize = '20' } = req.query;

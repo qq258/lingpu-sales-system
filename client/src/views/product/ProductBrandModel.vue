@@ -5,10 +5,20 @@
         <h1 class="pbm-title">品牌与型号管理</h1>
         <span class="pbm-subtitle">Brand &amp; Model Catalog</span>
       </div>
-      <button class="pbm-btn-accent" @click="openQuickAddDialog">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>快速新增</span>
-      </button>
+      <div style="display:flex;gap:8px;">
+        <button class="pbm-btn-plain" @click="handleExportBrands">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>导出品牌</span>
+        </button>
+        <button class="pbm-btn-plain" @click="handleExportModels">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>导出型号</span>
+        </button>
+        <button class="pbm-btn-accent" @click="openQuickAddDialog">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>快速新增</span>
+        </button>
+      </div>
     </header>
 
     <div class="pbm-body">
@@ -249,6 +259,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import type ElTree from 'element-plus/es/components/tree'
 import { getBrands, getModels, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, scanBarcode } from '@/api/product'
 import type { BrandData, ModelData } from '@/api/product'
+import { exportWithQuery } from '@/api/tools'
 import { createScanner } from '@/utils/scanner'
 
 const brandLoading = ref(false)
@@ -261,6 +272,14 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const modelTableRef = ref()
 
 const currentNodeKey = ref<string | null>(null)
+
+function handleExportBrands() {
+  exportWithQuery('/products/brands/export')
+}
+
+function handleExportModels() {
+  exportWithQuery('/products/models/export')
+}
 
 interface TreeNode {
   id: string
