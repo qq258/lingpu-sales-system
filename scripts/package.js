@@ -162,6 +162,9 @@ function main() {
   // Step 1: Build
   if (shouldBuild) {
     console.log('[1/5] Building all projects...');
+    // Prisma client 必须在 tsc 之前重新生成，否则类型检查会失败
+    console.log('  Regenerating Prisma client...');
+    run('pnpm --filter @phone-sales/server prisma:generate');
     run('pnpm build');
   } else {
     console.log('[1/5] Skipping build (use existing artifacts)');
@@ -201,77 +204,71 @@ function main() {
     fs.mkdirSync(scriptsDir, { recursive: true });
   }
 
-  // Step 3: Deploy server with pnpm
-  console.log('\n[3/5] Deploying server...');
-  
-  // Use a temp dir in project root (short path, no Chinese chars)
-  // IMPORTANT: Never use robocopy /MIR or fs.rmSync on this directory for cleanup,
-  // as pnpm creates junctions that can delete original source files!
-  const tempDir = path.join(ROOT, '.deploy-temp');
-  const tempServerDir = path.join(tempDir, 'server');
-  
-  // Remove only the server subdirectory (not the whole tempDir which may have pnpm junctions)
-  try { fs.rmSync(tempServerDir, { recursive: true, force: true }); } catch (e) {}
-  
-  run(`pnpm deploy --filter @phone-sales/server --legacy "${tempServerDir}"`);
-  
-  // Copy server compiled dist
-  console.log('  Copying compiled server dist...');
+  // Step 3: Deploy server (esbuild bundled, no full node_modules)
+  console.log('\n[3/5] Deploying server (esbuild bundled)...');
+
+  // 3.1 Run esbuild bundle (produces server/dist/index.js, single file)
+  console.log('  Bundling server with esbuild...');
+  run('pnpm --filter @phone-sales/server bundle');
+
+  // 3.2 Copy bundled dist to release
+  console.log('  Copying bundled dist...');
   robocopy(
     path.join(ROOT, 'server', 'dist'),
-    path.join(tempServerDir, 'dist')
+    path.join(RELEASE_DIR, 'server', 'dist')
   );
-  
-  // Copy server data (SQLite)
-  console.log('  Copying database...');
-  robocopy(
-    path.join(ROOT, 'server', 'data'),
-    path.join(tempServerDir, 'data')
-  );
-  
-  // Copy server uploads
-  console.log('  Copying uploads...');
-  if (fs.existsSync(path.join(ROOT, 'server', 'uploads'))) {
-    robocopy(
-      path.join(ROOT, 'server', 'uploads'),
-      path.join(tempServerDir, 'uploads')
-    );
-  }
-  
-  // Copy prisma schema
-  robocopy(
-    path.join(ROOT, 'server', 'prisma'),
-    path.join(tempServerDir, 'prisma')
-  );
-  
-  // Copy server package.json (for Prisma to resolve schema path)
-  fs.copyFileSync(
-    path.join(ROOT, 'server', 'package.json'),
-    path.join(tempServerDir, 'package.json')
-  );
-  
-  // Move temp server dir to final location
-  console.log('  Moving to release directory...');
-  robocopy(tempServerDir, path.join(RELEASE_DIR, 'server'));
-  // DO NOT clean up tempDir - pnpm creates junctions that can damage source files!
-  
-  // Copy Prisma client engine (pnpm deploy --legacy doesn't include .prisma generated files)
-  console.log('  Copying Prisma client engine...');
-  const prismaClientSrc = path.join(ROOT, 'node_modules', '.prisma', 'client');
-  const prismaClientDest = path.join(RELEASE_DIR, 'server', 'node_modules', '.prisma', 'client');
-  if (fs.existsSync(prismaClientSrc)) {
-    fs.mkdirSync(path.dirname(prismaClientDest), { recursive: true });
-    robocopy(prismaClientSrc, prismaClientDest);
+
+  // 3.3 Copy Prisma engine + wrapper (the ONLY external deps the bundle needs)
+  console.log('  Copying Prisma engine...');
+  const releaseServerNodeModules = path.join(RELEASE_DIR, 'server', 'node_modules');
+  const prismaGeneratedSrc = path.join(ROOT, 'node_modules', '.prisma', 'client');
+  const prismaGeneratedDest = path.join(releaseServerNodeModules, '.prisma', 'client');
+  if (fs.existsSync(prismaGeneratedSrc)) {
+    fs.mkdirSync(path.dirname(prismaGeneratedDest), { recursive: true });
+    robocopy(prismaGeneratedSrc, prismaGeneratedDest);
   } else {
-    // Try from pnpm store
+    // pnpm store fallback
     const storePath = path.join(ROOT, 'node_modules', '.pnpm', '@prisma+client@5.22.0', 'node_modules', '.prisma', 'client');
     if (fs.existsSync(storePath)) {
-      fs.mkdirSync(path.dirname(prismaClientDest), { recursive: true });
-      robocopy(storePath, prismaClientDest);
+      fs.mkdirSync(path.dirname(prismaGeneratedDest), { recursive: true });
+      robocopy(storePath, prismaGeneratedDest);
     } else {
       console.warn('  WARNING: Prisma client engine not found! Prisma may not work.');
     }
   }
+
+  // 3.4 Copy @prisma/client wrapper
+  console.log('  Copying @prisma/client wrapper...');
+  const prismaWrapperSrc = path.join(ROOT, 'node_modules', '@prisma', 'client');
+  const prismaWrapperDest = path.join(releaseServerNodeModules, '@prisma', 'client');
+  if (fs.existsSync(prismaWrapperSrc)) {
+    fs.mkdirSync(path.dirname(prismaWrapperDest), { recursive: true });
+    robocopy(prismaWrapperSrc, prismaWrapperDest);
+  }
+
+  // 3.5 Copy database
+  console.log('  Copying database...');
+  robocopy(
+    path.join(ROOT, 'server', 'data'),
+    path.join(RELEASE_DIR, 'server', 'data')
+  );
+
+  // 3.6 Copy uploads (optional)
+  if (fs.existsSync(path.join(ROOT, 'server', 'uploads'))) {
+    console.log('  Copying uploads...');
+    robocopy(
+      path.join(ROOT, 'server', 'uploads'),
+      path.join(RELEASE_DIR, 'server', 'uploads')
+    );
+  }
+
+  // 3.7 Copy server package.json (Prisma uses it to resolve schema location)
+  fs.copyFileSync(
+    path.join(ROOT, 'server', 'package.json'),
+    path.join(RELEASE_DIR, 'server', 'package.json')
+  );
+
+  console.log('  Server deployed (node_modules contains only Prisma).');
 
   // Copy client dist
   console.log('  Copying admin panel...');

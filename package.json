@@ -14,7 +14,9 @@
     "build": "pnpm run /^build:.*/",
     "prisma:generate": "pnpm --filter @phone-sales/server prisma:generate",
     "prisma:push": "pnpm --filter @phone-sales/server prisma:push",
-    "seed": "pnpm --filter @phone-sales/server seed"
+    "seed": "pnpm --filter @phone-sales/server seed",
+    "package": "node scripts/package.js",
+    "package:build": "node scripts/package.js --build"
   },
   "engines": {
     "node": ">=18.0.0",
