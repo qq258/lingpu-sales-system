@@ -139,3 +139,20 @@ export async function scanBarcode(barcode: string): Promise<ModelData> {
   const res: any = await request.get('/products/scan-barcode', { params: { barcode } })
   return res.data
 }
+
+export async function importBrandModels(
+  file: File,
+  conflictMode: 'skip' | 'overwrite' = 'skip',
+): Promise<{
+  success: number
+  skipped: number
+  overwritten: number
+  errors: Array<{ row: number; message: string }>
+}> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res: any = await request.post(`/products/import?conflictMode=${conflictMode}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data || { success: 0, skipped: 0, overwritten: 0, errors: [] }
+}
