@@ -18,6 +18,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span>快速新增</span>
         </button>
+        <button class="pbm-btn-plain" @click="importDialogVisible = true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>导入</span>
+        </button>
       </div>
     </header>
 
@@ -146,121 +150,31 @@
       </main>
     </div>
 
-    <el-dialog v-model="brandDialogVisible" :title="brandIsEdit ? '编辑品牌' : '新增品牌'" width="480px" :close-on-click-modal="false" class="pbm-dialog">
-      <el-form ref="brandFormRef" :model="brandForm" :rules="brandRules" label-width="90px" size="default">
-        <el-form-item label="品牌名称" prop="name">
-          <el-input v-model="brandForm.name" placeholder="例：Apple, Samsung" />
-        </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="brandForm.description" type="textarea" :rows="3" placeholder="可选描述" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <button class="pbm-btn-plain" @click="brandDialogVisible = false">取消</button>
-        <button class="pbm-btn-accent" :loading="brandSubmitLoading" @click="handleBrandSubmit">{{ brandSubmitLoading ? '提交中...' : '确定' }}</button>
-      </template>
-    </el-dialog>
+    <BrandModelEditDialog
+      v-model:visible="editDialogVisible"
+      :mode="editDialogMode"
+      :brand="editDialogBrand"
+      :model="editDialogModel"
+      :existing-brands="brands"
+      :loading="editDialogLoading"
+      @save="handleUnifiedSave"
+      @save-and-new="handleUnifiedSaveAndNew"
+    />
 
-    <el-dialog v-model="modelDialogVisible" :title="modelIsEdit ? '编辑型号' : '新增型号'" width="720px" top="4vh" :close-on-click-modal="false" class="pbm-dialog">
-      <el-form ref="modelFormRef" :model="modelForm" :rules="modelRules" label-width="100px" size="default">
-        <div class="pbm-dialog-grid">
-          <el-form-item label="所属品牌" prop="brandId">
-            <el-select v-model="modelForm.brandId" placeholder="选择品牌" filterable>
-              <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="型号名称" prop="name">
-            <el-input v-model="modelForm.name" placeholder="例：iPhone 15 Pro Max" />
-          </el-form-item>
-          <el-form-item label="操作系统">
-            <el-input v-model="modelForm.osType" placeholder="iOS / Android" />
-          </el-form-item>
-          <el-form-item label="上市年份">
-            <el-input-number v-model="modelForm.launchYear" :min="2000" :max="2099" controls-position="right" style="width:100%;" placeholder="2024" />
-          </el-form-item>
-          <el-form-item label="网络制式">
-            <el-select v-model="modelForm.networkType" placeholder="选择" clearable>
-              <el-option label="5G" value="5G" />
-              <el-option label="4G" value="4G" />
-              <el-option label="5G+4G" value="5G+4G" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="屏幕尺寸">
-            <el-input v-model="modelForm.screenSize" placeholder="6.7英寸" />
-          </el-form-item>
-          <el-form-item label="处理器">
-            <el-input v-model="modelForm.cpu" placeholder="A17 Pro" />
-          </el-form-item>
-          <el-form-item label="电池容量">
-            <el-input v-model="modelForm.battery" placeholder="4422mAh" />
-          </el-form-item>
-          <el-form-item label="运行内存">
-            <el-input v-model="modelForm.ram" placeholder="8GB" />
-          </el-form-item>
-          <el-form-item label="存储容量">
-            <el-input v-model="modelForm.rom" placeholder="256GB" />
-          </el-form-item>
-          <el-form-item label="颜色">
-            <el-input v-model="modelForm.color" placeholder="深黑色 / 白色" />
-          </el-form-item>
-          <el-form-item label="描述" class="pbm-form-full">
-            <el-input v-model="modelForm.description" type="textarea" :rows="2" placeholder="可选备注" />
-          </el-form-item>
-        </div>
-      </el-form>
-      <template #footer>
-        <button class="pbm-btn-plain" @click="modelDialogVisible = false">取消</button>
-        <button class="pbm-btn-accent" :loading="modelSubmitLoading" @click="handleModelSubmit">{{ modelSubmitLoading ? '提交中...' : '确定' }}</button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="quickDialogVisible" title="快速新增 — 扫码录入" width="520px" :close-on-click-modal="false" class="pbm-dialog">
-      <el-form ref="quickFormRef" :model="quickForm" :rules="quickRules" label-width="90px" size="default">
-        <el-form-item label="扫码枪" prop="barcode">
-          <el-input ref="scanInputRef" v-model="quickForm.barcode" placeholder="对准条码扫一下，自动识别" clearable @keyup.enter="handleScanBarcode">
-            <template #prefix>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 7V2h5"/><path d="M17 2h5v5"/><path d="M2 17v5h5"/><path d="M17 22h5v-5"/></svg>
-            </template>
-          </el-input>
-        </el-form-item>
-        <div v-if="scanResult" class="pbm-scan-result" :class="scanResult.found ? 'pbm-scan-result--ok' : 'pbm-scan-result--miss'">
-          <svg v-if="scanResult.found" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-          <div>
-            <strong>{{ scanResult.found ? '已识别' : '未匹配' }}</strong>
-            <span v-if="scanResult.found">{{ scanResult.brandName }} · {{ scanResult.modelName }}</span>
-            <span v-else>未找到商品信息，请手动填写</span>
-          </div>
-        </div>
-        <el-divider />
-        <el-form-item label="品牌" prop="brandName">
-          <el-input v-model="quickForm.brandName" placeholder="输入或扫码自动填充">
-            <template #append>
-              <button class="pbm-btn-ghost" @click="quickSaveBrand" style="height:100%;border:none;background:none;padding:0 12px;cursor:pointer;color:#3b82f6;font-size:13px;">保存</button>
-            </template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="型号" prop="modelName">
-          <el-input v-model="quickForm.modelName" placeholder="输入或扫码自动填充" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <button class="pbm-btn-plain" @click="quickDialogVisible = false">取消</button>
-        <button class="pbm-btn-accent" :loading="quickSubmitLoading" @click="handleQuickSubmit">{{ quickSubmitLoading ? '保存中...' : '保存品牌与型号' }}</button>
-      </template>
-    </el-dialog>
+    <BatchImportDialog v-model:visible="importDialogVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
 import type ElTree from 'element-plus/es/components/tree'
-import { getBrands, getModels, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, scanBarcode } from '@/api/product'
+import { getBrands, getModels, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel } from '@/api/product'
 import type { BrandData, ModelData } from '@/api/product'
 import { exportWithQuery } from '@/api/tools'
-import { createScanner } from '@/utils/scanner'
+import BrandModelEditDialog from './components/BrandModelEditDialog.vue'
+import BatchImportDialog from './components/BatchImportDialog.vue'
+import type { DialogMode } from './components/BrandModelEditDialog.vue'
 
 const brandLoading = ref(false)
 const modelLoading = ref(false)
@@ -272,6 +186,16 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const modelTableRef = ref()
 
 const currentNodeKey = ref<string | null>(null)
+
+// 一体化弹窗状态
+const editDialogVisible = ref(false)
+const editDialogMode = ref<DialogMode>('create')
+const editDialogBrand = ref<BrandData | null>(null)
+const editDialogModel = ref<ModelData | null>(null)
+const editDialogLoading = ref(false)
+
+// 导入弹窗状态
+const importDialogVisible = ref(false)
 
 function handleExportBrands() {
   exportWithQuery('/products/brands/export')
@@ -325,49 +249,6 @@ function onTreeNodeClick(data: TreeNode) {
   loadModels()
 }
 
-const brandDialogVisible = ref(false)
-const brandIsEdit = ref(false)
-const brandEditId = ref<number | null>(null)
-const brandSubmitLoading = ref(false)
-const brandFormRef = ref<FormInstance>()
-const brandForm = ref<BrandData>({ name: '', description: '' })
-const brandRules: FormRules = {
-  name: [{ required: true, message: '请输入品牌名称', trigger: 'blur' }],
-}
-
-const modelDialogVisible = ref(false)
-const modelIsEdit = ref(false)
-const modelEditId = ref<number | null>(null)
-const modelSubmitLoading = ref(false)
-const modelFormRef = ref<FormInstance>()
-const modelForm = ref<ModelData>({ brandId: 0, name: '' })
-const modelRules: FormRules = {
-  brandId: [{ required: true, message: '请选择品牌', trigger: 'change' }],
-  name: [{ required: true, message: '请输入型号名称', trigger: 'blur' }],
-}
-
-const quickDialogVisible = ref(false)
-const quickSubmitLoading = ref(false)
-const quickFormRef = ref<FormInstance>()
-const scanInputRef = ref()
-const quickForm = ref({ barcode: '', brandName: '', modelName: '' })
-const quickRules: FormRules = {
-  brandName: [{ required: true, message: '请输入品牌名称', trigger: 'blur' }],
-  modelName: [{ required: true, message: '请输入型号名称', trigger: 'blur' }],
-}
-const scanResult = ref<{ found: boolean; brandName: string; modelName: string } | null>(null)
-
-let scanner: ReturnType<typeof createScanner> | null = null
-
-function resetModelForm() {
-  return {
-    brandId: selectedBrand.value?.id || 0,
-    name: '', color: '', ram: '', rom: '',
-    osType: '', launchYear: undefined as number | undefined,
-    networkType: '', screenSize: '', cpu: '', battery: '', description: '',
-  }
-}
-
 async function loadBrands() {
   brandLoading.value = true
   try {
@@ -404,33 +285,106 @@ function onModelSelect(row: ModelData | null) {
 }
 
 function openBrandDialog(row?: BrandData) {
-  if (row) {
-    brandIsEdit.value = true
-    brandEditId.value = row.id!
-    brandForm.value = { name: row.name, description: row.description }
-  } else {
-    brandIsEdit.value = false
-    brandEditId.value = null
-    brandForm.value = { name: '', description: '' }
-  }
-  brandDialogVisible.value = true
+  editDialogMode.value = row ? 'edit-brand' : 'create'
+  editDialogBrand.value = row || null
+  editDialogModel.value = null
+  editDialogVisible.value = true
 }
 
-async function handleBrandSubmit() {
-  const valid = await brandFormRef.value?.validate().catch(() => false)
-  if (!valid) return
-  brandSubmitLoading.value = true
+function openModelDialog(row?: ModelData) {
+  editDialogMode.value = row ? 'edit-model' : 'create'
+  editDialogBrand.value = selectedBrand.value
+  editDialogModel.value = row || null
+  editDialogVisible.value = true
+}
+
+function openQuickAddDialog() {
+  editDialogMode.value = 'create'
+  editDialogBrand.value = null
+  editDialogModel.value = null
+  editDialogVisible.value = true
+}
+
+async function handleUnifiedSave(payload: { brand: { id?: number; name: string; description?: string }; models: Partial<ModelData>[] }) {
+  await performSave(payload, false)
+}
+
+async function handleUnifiedSaveAndNew(payload: { brand: { id?: number; name: string; description?: string }; models: Partial<ModelData>[] }) {
+  await performSave(payload, true)
+}
+
+async function performSave(payload: { brand: { id?: number; name: string; description?: string }; models: Partial<ModelData>[] }, keepDialogOpen: boolean) {
+  editDialogLoading.value = true
   try {
-    if (brandIsEdit.value && brandEditId.value) {
-      await updateBrand(brandEditId.value, brandForm.value)
-      ElMessage.success('更新成功')
+    let brandId = payload.brand.id
+    if (brandId) {
+      await updateBrand(brandId, { name: payload.brand.name, description: payload.brand.description })
     } else {
-      await createBrand(brandForm.value)
-      ElMessage.success('创建成功')
+      const created = await createBrand({ name: payload.brand.name, description: payload.brand.description })
+      brandId = created.id!
     }
-    brandDialogVisible.value = false
+
+    for (const m of payload.models) {
+      if (m.id) {
+        const modelData: ModelData = {
+          brandId: brandId,
+          name: m.name || '',
+          color: m.color,
+          ram: m.ram,
+          rom: m.rom,
+          osType: m.osType,
+          launchYear: m.launchYear,
+          networkType: m.networkType,
+          screenSize: m.screenSize,
+          cpu: m.cpu,
+          battery: m.battery,
+          barcode: m.barcode,
+          description: m.description,
+        }
+        await updateModel(m.id, modelData)
+      } else {
+        const modelData: ModelData = {
+          brandId: brandId,
+          name: m.name || '',
+          color: m.color,
+          ram: m.ram,
+          rom: m.rom,
+          osType: m.osType,
+          launchYear: m.launchYear,
+          networkType: m.networkType,
+          screenSize: m.screenSize,
+          cpu: m.cpu,
+          battery: m.battery,
+          barcode: m.barcode,
+          description: m.description,
+        }
+        await createModel(modelData)
+      }
+    }
+
+    ElMessage.success(`保存成功：${payload.models.length} 个型号`)
     await loadBrands()
-  } finally { brandSubmitLoading.value = false }
+    if (brandId) {
+      const updated = brands.value.find(b => b.id === brandId)
+      if (updated) {
+        selectedBrand.value = updated
+        currentNodeKey.value = `brand-${updated.id}`
+        await loadModels()
+      }
+    }
+
+    if (keepDialogOpen) {
+      editDialogBrand.value = null
+      editDialogModel.value = null
+      editDialogMode.value = 'create'
+    } else {
+      editDialogVisible.value = false
+    }
+  } catch (err: any) {
+    ElMessage.error('保存失败：' + (err?.message || '未知错误'))
+  } finally {
+    editDialogLoading.value = false
+  }
 }
 
 async function handleDeleteBrand(row: BrandData) {
@@ -448,37 +402,6 @@ async function handleDeleteBrand(row: BrandData) {
   } catch { /* cancelled */ }
 }
 
-function openModelDialog(row?: ModelData) {
-  if (row) {
-    modelIsEdit.value = true
-    modelEditId.value = row.id!
-    modelForm.value = { ...row }
-  } else {
-    modelIsEdit.value = false
-    modelEditId.value = null
-    modelForm.value = resetModelForm()
-  }
-  modelDialogVisible.value = true
-}
-
-async function handleModelSubmit() {
-  const valid = await modelFormRef.value?.validate().catch(() => false)
-  if (!valid) return
-  modelSubmitLoading.value = true
-  try {
-    if (modelIsEdit.value && modelEditId.value) {
-      await updateModel(modelEditId.value, { ...modelForm.value })
-      ElMessage.success('更新成功')
-    } else {
-      await createModel({ ...modelForm.value })
-      ElMessage.success('创建成功')
-    }
-    modelDialogVisible.value = false
-    await loadBrands()
-    await loadModels()
-  } finally { modelSubmitLoading.value = false }
-}
-
 async function handleDeleteModel(row: ModelData) {
   try {
     await ElMessageBox.confirm(`确定删除型号「${row.name}」吗？`, '确认删除', { type: 'warning' })
@@ -489,79 +412,9 @@ async function handleDeleteModel(row: ModelData) {
   } catch { /* cancelled */ }
 }
 
-async function openQuickAddDialog() {
-  scanResult.value = null
-  quickForm.value = { barcode: '', brandName: '', modelName: '' }
-  quickDialogVisible.value = true
-  await nextTick()
-  const input = scanInputRef.value?.$el?.querySelector('input')
-  if (input) input.focus()
-}
-
-async function handleScanBarcode() {
-  const barcode = quickForm.value.barcode.trim()
-  if (!barcode) return
-  try {
-    const result = await scanBarcode(barcode)
-    quickForm.value.brandName = result.brandName
-    quickForm.value.modelName = result.modelName
-    scanResult.value = { found: true, brandName: result.brandName, modelName: result.modelName }
-    ElMessage.success(`已识别：${result.brandName} ${result.modelName}`)
-  } catch {
-    scanResult.value = { found: false, brandName: '', modelName: '' }
-    ElMessage.warning('未找到该条码对应的商品信息，请手动填写品牌和型号')
-  }
-}
-
-async function quickSaveBrand() {
-  const name = quickForm.value.brandName.trim()
-  if (!name) { ElMessage.warning('请先输入品牌名称'); return }
-  if (brands.value.find(b => b.name === name)) { ElMessage.info(`品牌「${name}」已存在`); return }
-  try {
-    await createBrand({ name })
-    ElMessage.success('品牌保存成功')
-    await loadBrands()
-  } catch { /* handled */ }
-}
-
-async function handleQuickSubmit() {
-  const valid = await quickFormRef.value?.validate().catch(() => false)
-  if (!valid) return
-  quickSubmitLoading.value = true
-  try {
-    const brandName = quickForm.value.brandName.trim()
-    const modelName = quickForm.value.modelName.trim()
-    let brand = brands.value.find(b => b.name === brandName)
-    if (!brand) { brand = await createBrand({ name: brandName }); await loadBrands() }
-    const existingModels = await getModels(brand.id)
-    if (existingModels.find(m => m.name === modelName && m.brandId === brand.id)) {
-      ElMessage.warning(`型号「${modelName}」已存在`); return
-    }
-    await createModel({ brandId: brand.id!, name: modelName })
-    ElMessage.success(`品牌「${brandName}」、型号「${modelName}」保存成功`)
-    selectedBrand.value = brands.value.find(b => b.id === brand.id) || brand
-    await loadBrands(); await loadModels()
-    quickDialogVisible.value = false
-  } catch { /* handled */ }
-  finally { quickSubmitLoading.value = false }
-}
-
 onMounted(() => {
   loadBrands()
-  nextTick(() => {
-    scanner = createScanner({
-      onScan: (code: string) => {
-        if (quickDialogVisible.value) {
-          quickForm.value.barcode = code
-          handleScanBarcode()
-        }
-      },
-    })
-    scanner.attach()
-  })
 })
-
-onUnmounted(() => { if (scanner) scanner.detach() })
 </script>
 
 <style>
