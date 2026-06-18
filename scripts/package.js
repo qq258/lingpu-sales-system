@@ -217,6 +217,11 @@ function main() {
     path.join(ROOT, 'server', 'dist'),
     path.join(RELEASE_DIR, 'server', 'dist')
   );
+  // 清理 server dist 中的 source map 文件
+  const serverDist = path.join(RELEASE_DIR, 'server', 'dist');
+  const serverMaps = findFiles(serverDist, /\.map$/);
+  for (const f of serverMaps) { try { fs.unlinkSync(f); } catch {} }
+  if (serverMaps.length > 0) console.log(`  Cleaned ${serverMaps.length} source maps from server dist.`);
 
   // 3.3 Copy Prisma engine + wrapper (the ONLY external deps the bundle needs)
   console.log('  Copying Prisma engine...');
@@ -240,8 +245,25 @@ function main() {
     }
 
     if (prismaClientDir && fs.existsSync(prismaClientDir)) {
-      fs.mkdirSync(path.dirname(path.join(releaseServerNodeModules, '.prisma', 'client')), { recursive: true });
-      robocopy(prismaClientDir, path.join(releaseServerNodeModules, '.prisma', 'client'));
+      const prismaDest = path.join(releaseServerNodeModules, '.prisma', 'client');
+      const prismaParent = path.dirname(prismaDest);
+      fs.mkdirSync(prismaParent, { recursive: true });
+      robocopy(prismaClientDir, prismaDest);
+
+      // 清理: 删除残留 .tmp 文件(失败的 prisma generate 产物), 每个 18MB+
+      const tmpFiles = fs.readdirSync(prismaDest).filter(f => f.includes('.tmp'));
+      for (const f of tmpFiles) {
+        try { fs.unlinkSync(path.join(prismaDest, f)); } catch {}
+      }
+      if (tmpFiles.length > 0) console.log(`  Cleaned ${tmpFiles.length} stale .tmp files from Prisma engine.`);
+
+      // 清理: 删除不必要的运行时文件(仅保留 Node.js 所需的 index.js + query_engine)
+      const unneededPrismaFiles = ['default.js', 'default.d.ts', 'edge.js', 'edge.d.ts', 'wasm.js', 'wasm.d.ts', 'index-browser.js', 'schema.prisma'];
+      for (const f of unneededPrismaFiles) {
+        const fp = path.join(prismaDest, f);
+        if (fs.existsSync(fp)) try { fs.unlinkSync(fp); } catch {}
+      }
+
       console.log('  Prisma engine copied.');
     } else {
       console.warn('  WARNING: Prisma client engine not found! Prisma may not work.');
@@ -254,6 +276,10 @@ function main() {
   if (fs.existsSync(prismaWrapperSrc)) {
     fs.mkdirSync(path.dirname(prismaWrapperDest), { recursive: true });
     robocopy(prismaWrapperSrc, prismaWrapperDest);
+    // 清理 @prisma/client 中的 .map 文件
+    const mapFiles = findFiles(prismaWrapperDest, /\.map$/);
+    for (const f of mapFiles) { try { fs.unlinkSync(f); } catch {} }
+    if (mapFiles.length > 0) console.log(`  Cleaned ${mapFiles.length} source maps from @prisma/client.`);
   }
 
   // 3.5 Copy database
@@ -355,6 +381,21 @@ function main() {
   if (zipSource === 'download' && fs.existsSync(zipFile)) {
     fs.unlinkSync(zipFile);
   }
+
+  // 瘦身: 删除 Node.js 中不需要的模块(发布版本无需 npm CLI)
+  console.log('  Stripping Node.js runtime...');
+  // 删除整个 node_modules (npm 及其依赖, 发布环境不需要)
+  const nodeModulesDir = path.join(nodeDir, 'node_modules');
+  if (fs.existsSync(nodeModulesDir)) {
+    try { fs.rmSync(nodeModulesDir, { recursive: true, force: true }); } catch {}
+  }
+  // 删除 C++ 头文件等开发资源
+  for (const dir of ['include']) {
+    const fp = path.join(nodeDir, dir);
+    if (fs.existsSync(fp)) try { fs.rmSync(fp, { recursive: true, force: true }); } catch {}
+  }
+  console.log('  Node.js runtime stripped.');
+
   console.log('  Node.js extracted successfully.');
 
   // Step 5: Create launcher scripts
@@ -393,6 +434,19 @@ function getDirSize(dirPath) {
     }
   } catch (e) { /* skip */ }
   return total;
+}
+
+function findFiles(dir, pattern) {
+  let results = [];
+  try {
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+      const fp = path.join(dir, item.name);
+      if (item.isDirectory()) results = results.concat(findFiles(fp, pattern));
+      else if (pattern.test(item.name)) results.push(fp);
+    }
+  } catch (e) { /* skip */ }
+  return results;
 }
 
 main();
