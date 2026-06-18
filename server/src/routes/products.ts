@@ -3,6 +3,9 @@ import prisma from '../utils/prisma';
 import { ApiResponse } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import * as XLSX from 'xlsx';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -311,6 +314,124 @@ router.get('/models/export', async (req: Request, res: Response) => {
     res.send(buffer);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 批量导入品牌与型号
+router.post('/import', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    const conflictMode = (req.query.conflictMode as string) === 'overwrite' ? 'overwrite' : 'skip';
+
+    if (!req.file) {
+      const r: ApiResponse = { code: 400, message: '请上传 xlsx 文件' };
+      return res.status(400).json(r);
+    }
+
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    const errors: Array<{ row: number; message: string }> = [];
+    let success = 0;
+    let skipped = 0;
+    let overwritten = 0;
+
+    const colMap: Record<string, string> = {
+      '品牌名': 'brandName', '品牌': 'brandName', 'brand': 'brandName', 'brandName': 'brandName',
+      '型号名': 'name', '型号名称': 'name', '型号': 'name', 'name': 'name',
+      '颜色': 'color', 'color': 'color',
+      '操作系统': 'osType', '系统': 'osType', 'osType': 'osType',
+      '屏幕尺寸': 'screenSize', '屏幕': 'screenSize', 'screenSize': 'screenSize',
+      '处理器': 'cpu', 'cpu': 'cpu',
+      '运行内存': 'ram', '内存': 'ram', 'ram': 'ram',
+      '存储容量': 'rom', '存储': 'rom', 'rom': 'rom',
+      '电池容量': 'battery', '电池': 'battery', 'battery': 'battery',
+      '网络制式': 'networkType', '网络': 'networkType', 'networkType': 'networkType',
+      '上市年份': 'launchYear', '年份': 'launchYear', 'launchYear': 'launchYear',
+      '条码': 'barcode', '出厂条码': 'barcode', 'barcode': 'barcode',
+      '描述': 'description', 'description': 'description',
+    };
+
+    // 按品牌分组
+    const brandGroups: Record<string, Array<{ rowIndex: number; data: any }>> = {};
+    for (let i = 0; i < rawRows.length; i++) {
+      const raw = rawRows[i];
+      const mapped: any = {};
+      for (const k of Object.keys(raw)) {
+        const field = colMap[k];
+        if (field) mapped[field] = raw[k];
+      }
+      const brandName = String(mapped.brandName || '').trim();
+      const modelName = String(mapped.name || '').trim();
+      if (!brandName || !modelName) {
+        errors.push({ row: i + 2, message: !brandName ? '品牌名不能为空' : '型号名不能为空' });
+        continue;
+      }
+      const key = brandName.toLowerCase();
+      if (!brandGroups[key]) brandGroups[key] = [];
+      brandGroups[key].push({ rowIndex: i + 2, data: mapped });
+    }
+
+    // 处理每个品牌
+    for (const [, group] of Object.entries(brandGroups)) {
+      const firstRow = group[0].data;
+      const brandName = String(firstRow.brandName).trim();
+      const brandDescription = String(firstRow.description || '').trim() || undefined;
+
+      let brand = await prisma.pdt_brand.findFirst({ where: { name: brandName } });
+      if (!brand) {
+        brand = await prisma.pdt_brand.create({ data: { name: brandName, description: brandDescription } });
+      } else if (conflictMode === 'overwrite' && brandDescription) {
+        brand = await prisma.pdt_brand.update({ where: { id: brand.id }, data: { description: brandDescription } });
+      }
+
+      for (const { rowIndex, data } of group) {
+        const modelName = String(data.name).trim();
+        const existingModel = await prisma.pdt_model.findFirst({
+          where: { brand_id: brand.id, name: modelName },
+        });
+
+        const modelData: any = {
+          brand_id: brand.id,
+          name: modelName,
+          color: data.color || null,
+          ram: data.ram || null,
+          rom: data.rom || null,
+          sale_price: 0,
+          cost_price: null,
+          manufacturer_barcode: data.barcode || null,
+          os_type: data.osType || null,
+          launch_year: data.launchYear ? Number(data.launchYear) : null,
+          network_type: data.networkType || null,
+          screen_size: data.screenSize || null,
+          cpu: data.cpu || null,
+          battery: data.battery || null,
+          description: data.description || null,
+        };
+
+        try {
+          if (existingModel) {
+            if (conflictMode === 'overwrite') {
+              await prisma.pdt_model.update({ where: { id: existingModel.id }, data: modelData });
+              overwritten++;
+            } else {
+              skipped++;
+            }
+          } else {
+            await prisma.pdt_model.create({ data: modelData });
+            success++;
+          }
+        } catch (err: any) {
+          errors.push({ row: rowIndex, message: err.message || '保存失败' });
+        }
+      }
+    }
+
+    const r: ApiResponse = { code: 200, message: 'success', data: { success, skipped, overwritten, errors } };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message || '导入失败' };
     return res.status(500).json(r);
   }
 });
