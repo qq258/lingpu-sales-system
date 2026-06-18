@@ -257,13 +257,6 @@ function main() {
       }
       if (tmpFiles.length > 0) console.log(`  Cleaned ${tmpFiles.length} stale .tmp files from Prisma engine.`);
 
-      // 清理: 删除不必要的运行时文件(仅保留 Node.js 所需的 index.js + query_engine)
-      const unneededPrismaFiles = ['default.js', 'default.d.ts', 'edge.js', 'edge.d.ts', 'wasm.js', 'wasm.d.ts', 'index-browser.js', 'schema.prisma'];
-      for (const f of unneededPrismaFiles) {
-        const fp = path.join(prismaDest, f);
-        if (fs.existsSync(fp)) try { fs.unlinkSync(fp); } catch {}
-      }
-
       console.log('  Prisma engine copied.');
     } else {
       console.warn('  WARNING: Prisma client engine not found! Prisma may not work.');
