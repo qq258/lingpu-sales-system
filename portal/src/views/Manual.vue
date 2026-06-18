@@ -3,7 +3,7 @@
     <div class="page-title-row">
       <h1 class="page-title">使用手册</h1>
       <span class="title-line"></span>
-      <span class="badge">v1.0</span>
+      <span class="badge">v1.1</span>
     </div>
 
     <div class="manual-layout">
@@ -244,6 +244,28 @@
               <li>这两个字段为可选项，入库时未录入，在销售开单时也可以补录</li>
             </ul>
           </section>
+
+          <section class="sec">
+            <h3 class="sec-title">3.6 无库存销售-入库场景(门户网站)</h3>
+            <p><strong>适用</strong>:历史商品在售出时尚未登记入库,需要现录现卖。</p>
+            <ol>
+              <li>登录门户网站,点击顶部导航的<strong>开单</strong>,或从看板点击<strong>开单</strong>快捷按钮</li>
+              <li><strong>切换销售类型</strong>:在页面顶部"销售类型"区域,选择 <strong>无库存销售</strong></li>
+              <li><strong>搜索品牌型号</strong>:在品牌型号输入框中输入关键词,系统从已有型号中模糊匹配(匹配品牌名 + 型号名)</li>
+              <li><strong>选择商品</strong>:
+                <ul>
+                  <li>匹配到已有型号 → 点击下拉项(自动带入预设售价)</li>
+                  <li>无匹配项 → 点击下拉列表底部"未找到匹配项,将保存为新品牌型号",在弹出的确认框中按"保存"</li>
+                </ul>
+              </li>
+              <li><strong>录入 IMEI</strong>:依次在 IMEI1 / IMEI2 / SN 三个输入框中扫码或手动输入,扫码枪录入时自动跳焦到下一字段</li>
+              <li><strong>设置售出价格</strong>:匹配到已有型号时自动带入,允许修改</li>
+              <li>点击<strong>添加至购物车</strong></li>
+              <li><strong>结算开单</strong>:与普通销售一致,填写实收金额、客户信息(可选),点击<strong>确认开单</strong></li>
+              <li>收款完成后,系统自动调后端接口新建品牌型号 + 库存记录</li>
+            </ol>
+            <div class="tip">无库存销售产生的库存记录会立即出现在库存查询中,后续可正常补录 IMEI2/SN(见 4.7)。</div>
+          </section>
         </div>
 
         <!-- 第四章 -->
@@ -331,6 +353,36 @@
             <h3 class="sec-title">4.6 低库存预警</h3>
             <p>系统默认低库存阈值为 <strong>10 台</strong>。在看板和库存页面会显示低库存商品列表，库存数量低于 10 台的型号会高亮提示。</p>
           </section>
+
+          <section class="sec">
+            <h3 class="sec-title">4.7 库存查询支持 IMEI2 / SN 码搜索与补录</h3>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">4.7.1 搜索范围扩展</h4>
+              <ul>
+                <li>搜索框支持输入：IMEI / IMEI2 / SN 码 / 商品名称 / 厂家条码</li>
+                <li>搜索框 placeholder 改为：<code>搜索 IMEI / IMEI2 / SN码 / 商品名称...</code></li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">4.7.2 卡片展开与补录</h4>
+              <ol>
+                <li>库存卡片默认展示品牌、型号、规格、IMEI</li>
+                <li>点击卡片上的<strong>展开按钮</strong>，显示 IMEI2 和 SN 码</li>
+                <li>若某字段为空，显示<strong>补录</strong>按钮</li>
+                <li>点补录 → 行内变为输入框 → 输入后回车 → 调用后端 <code>PUT /inventory/imei/:id</code> 保存</li>
+                <li>保存后卡片自动刷新，显示新值</li>
+              </ol>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">4.7.3 补录数据流</h4>
+              <div class="code-block">用户点击补录 → 内联输入 → PUT /inventory/imei/:id { imei2?: string, sn_code?: string }
+  → 后端更新 wh_inventory_imei 表
+  → 返回更新后记录 → 卡片刷新</div>
+            </section>
+          </section>
         </div>
 
         <!-- 第五章 -->
@@ -401,6 +453,35 @@
             <h3 class="sec-title">5.6 销售记录查询</h3>
             <p><strong>门户网站：</strong>点击顶部导航的<strong>记录</strong>，按日期范围筛选（默认今日），以卡片形式展示。</p>
             <p><strong>管理后台：</strong>进入管理后台 &gt; <strong>销售记录</strong>，表格形式展示，支持查看详情和补打小票。</p>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">5.7 无库存销售(开单场景)</h3>
+            <div class="tip">与 3.6 互补 — 3.6 描述入库逻辑，5.7 描述开单完整流程。</div>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">5.7.1 切换销售类型</h4>
+              <ul>
+                <li>在门户网站开单页顶部，新增 radio 切换：<code>普通销售</code> / <code>无库存销售</code></li>
+                <li>默认 <code>普通销售</code>；切换时若购物车有商品，弹窗确认后清空</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">5.7.2 无库存销售模式</h4>
+              <ul>
+                <li><strong>品牌型号搜索</strong>：支持模糊搜索，无匹配时允许用户输入并保存为新品牌型号（弹 SaveBrandDialog 二次确认）</li>
+                <li><strong>保存品牌型号</strong>：弹窗中按第一个空格自动分割为品牌 + 型号，用户可调整；只允许点"确认"（无取消）</li>
+                <li><strong>IMEI/SN 录入</strong>：扫码枪逐字段自动跳焦</li>
+                <li><strong>购物车</strong>：每个商品展示 IMEI1/IMEI2/SN，未录入字段显示[待录入]标签，点击行内编辑</li>
+                <li><strong>结算</strong>：与普通销售一致（合计、实收、找零、客户信息、备注）</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">5.7.3 提交后自动建库</h4>
+              <p>收款确认后，后端 <code>POST /sales/no-stock</code> 一次性完成：新建品牌型号 + 新建库存记录 + 创建销售单 + 扣减库存</p>
+            </section>
           </section>
         </div>
 
@@ -513,6 +594,48 @@
             <h3 class="sec-title">7.4 热销排行</h3>
             <p>进入管理后台 &gt; <strong>热销排行</strong>，支持时间范围筛选，展示型号的销售数量排行。</p>
           </section>
+
+          <section class="sec">
+            <h3 class="sec-title">7.5 利润中心</h3>
+            <div class="tip">用途：查看每笔销售的真实利润，辅助经营决策。</div>
+            <ol>
+              <li>进入管理后台 &gt; <strong>利润中心</strong></li>
+              <li>选择时间范围（默认本月）</li>
+              <li>表格展示每笔销售的关键列</li>
+            </ol>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>列名</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>订单号</td><td>关联销售单</td></tr>
+                  <tr><td>销售时间</td><td>下单时间</td></tr>
+                  <tr><td>商品</td><td>品牌 + 型号</td></tr>
+                  <tr><td>售价</td><td>实际成交价</td></tr>
+                  <tr><td>成本</td><td>入库单价（无库存销售记录在销售单的 cost 字段）</td></tr>
+                  <tr><td>毛利</td><td>售价 − 成本</td></tr>
+                  <tr><td>毛利率</td><td>毛利 ÷ 售价 × 100%</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <ol start="4">
+              <li>顶部汇总：销售额、成本、毛利、毛利率</li>
+              <li>点击订单号可查看销售详情</li>
+              <li>导出按钮：导出当前筛选结果为 Excel</li>
+            </ol>
+            <div class="tip">退货订单用负值表示（售价为负、毛利为负），汇总会自动相抵。</div>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">7.6 数据导出</h3>
+            <ul>
+              <li><strong>销售记录导出</strong>：管理后台 &gt; 销售记录 &gt; 右上角<strong>导出</strong> → 选时间范围 → 生成 <code>.xlsx</code></li>
+              <li><strong>利润中心导出</strong>：管理后台 &gt; 利润中心 &gt; 右上角<strong>导出</strong> → 选时间范围 → 生成 <code>.xlsx</code></li>
+              <li><strong>库存导出</strong>：管理后台 &gt; 库存查询 &gt; 右上角<strong>导出</strong> → 导出当前查询结果 → <code>.xlsx</code></li>
+              <li>导出文件保存在浏览器的下载目录</li>
+            </ul>
+          </section>
         </div>
 
         <!-- 第八章 -->
@@ -548,9 +671,84 @@
           </section>
 
           <section class="sec">
-            <h3 class="sec-title">8.3 数据工具</h3>
-            <div class="warn">谨慎使用！数据工具用于处理异常数据，仅超级管理员可操作。建议操作前先备份数据库文件。</div>
-            <p>适用场景：IMEI 数据清理、库存数据修正、其他数据维护操作。</p>
+            <h3 class="sec-title">8.3 数据工具(已扩充)</h3>
+            <div class="warn">谨慎使用！数据工具用于处理异常数据，仅超级管理员可操作。</div>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.3.1 IMEI 数据清理</h4>
+              <ul>
+                <li><strong>用途</strong>：删除异常/重复 IMEI 记录</li>
+                <li><strong>操作</strong>：输入 IMEI → 系统查找匹配记录 → 确认删除</li>
+                <li><strong>影响</strong>：相关销售单 IMEI 字段清空(订单不删除)</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.3.2 库存数据修正</h4>
+              <ul>
+                <li><strong>用途</strong>：手动调整某型号的库存数量(增减)</li>
+                <li><strong>操作</strong>：选择型号 → 输入调整数量(正/负) → 填写原因 → 提交</li>
+                <li><strong>影响</strong>：写入库存流水表(adjustment 类型),库存数量立即更新</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.3.3 数据库备份</h4>
+              <ul>
+                <li><strong>用途</strong>：导出完整数据库快照</li>
+                <li><strong>操作</strong>：点击<strong>立即备份</strong> → 下载 <code>.sql</code> 文件</li>
+                <li><strong>建议</strong>：每周至少备份一次,重要数据操作前手动备份</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.3.4 操作建议</h4>
+              <p>建议在进行数据操作前先备份数据库文件;操作后用销售记录/库存查询验证数据正确性。</p>
+            </section>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">8.4 操作审计日志</h3>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.4.1 查看审计日志</h4>
+              <ol>
+                <li>进入管理后台 &gt; <strong>审计日志</strong></li>
+                <li>按时间范围筛选(默认近 7 天)</li>
+                <li>支持按用户、操作类型、目标类型筛选</li>
+                <li>表格展示：时间、用户、操作、目标、详情</li>
+              </ol>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.4.2 记录的操作类型</h4>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>操作类型</th><th>说明</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>登录/登出</td><td>用户登录和登出事件</td></tr>
+                    <tr><td>新增/编辑/删除</td><td>用户、门店、品牌、型号的 CRUD</td></tr>
+                    <tr><td>库存调整</td><td>数据工具中的库存调整</td></tr>
+                    <tr><td>备份</td><td>数据库备份事件</td></tr>
+                    <tr><td>权限变更</td><td>角色和权限的调整</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">8.4.3 审计字段</h4>
+              <ul>
+                <li><strong>操作人</strong>：当前登录用户</li>
+                <li><strong>时间</strong>：精确到秒</li>
+                <li><strong>目标类型</strong>：user / store / brand / model / inventory / backup</li>
+                <li><strong>目标 ID</strong>：被操作对象的 ID</li>
+                <li><strong>变更前 / 变更后</strong>：JSON 格式,展示关键字段差异</li>
+              </ul>
+              <div class="tip">审计日志只增不改不删,保留至少 90 天。</div>
+            </section>
           </section>
         </div>
 
@@ -652,6 +850,214 @@
             </ul>
             <div class="warn">数据工具操作不可逆，操作前请务必备份数据库。</div>
           </section>
+
+          <section class="sec">
+            <h3 class="sec-title">9.7 其他常见问题</h3>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">9.7.1 网络与连接</h4>
+              <div class="qa-item">
+                <div class="qa-q">Q：扫码枪无法识别条码？</div>
+                <div class="qa-a">A：检查 USB 是否插好；确认扫码枪设置为"USB 键盘模式"；在记事本扫码验证扫码枪本身；刷新页面重试。</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q">Q：网络断线导致数据未保存？</div>
+                <div class="qa-a">A：销售单提交失败会提示错误，数据不会丢失。网络恢复后重试即可；严重时联系管理员检查数据库连接。</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q">Q：浏览器提示"连接不安全"？</div>
+                <div class="qa-a">A：确认访问地址是 <code>http://localhost:5173</code>(门户网站)或 <code>http://localhost:5174</code>(管理后台)。内网部署也用 HTTP。</div>
+              </div>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">9.7.2 性能问题</h4>
+              <div class="qa-item">
+                <div class="qa-q">Q：库存列表加载慢？</div>
+                <div class="qa-a">A：通常因为库存数量大(> 5000 条)。使用搜索框定位特定型号，避免全量加载；联系管理员考虑分页/索引优化。</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q">Q：销售开单提交慢？</div>
+                <div class="qa-a">A：检查网络延迟；同时开单用户过多会排队，稍等重试。</div>
+              </div>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">9.7.3 数据同步</h4>
+              <div class="qa-item">
+                <div class="qa-q">Q：门户网站与管理后台数据不一致？</div>
+                <div class="qa-a">A：浏览器缓存问题：硬刷新(<code>Ctrl+Shift+R</code>)；数据写入失败：检查后端日志；数据延迟：等 1-2 分钟或手动刷新。</div>
+              </div>
+            </section>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">9.8 使用建议</h3>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">9.8.1 日常操作</h4>
+              <ul>
+                <li><strong>入库时</strong>：录入 IMEI 后立即按回车添加，逐台确认</li>
+                <li><strong>销售时</strong>：扫码前先选好商品，再录 IMEI，避免混淆</li>
+                <li><strong>盘点时</strong>：使用批量扫码，先扫满一批再提交</li>
+                <li><strong>日结时</strong>：每天下班前打印当日销售汇总，核对销售单数与现金</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">9.8.2 性能与数据</h4>
+              <ul>
+                <li>库存数据超过 5000 条时，使用搜索功能避免全量加载</li>
+                <li>每月至少导出一次销售数据作为备份</li>
+                <li>重要操作(数据工具、批量删除)前先备份数据库</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">9.8.3 常见误区</h4>
+              <ul>
+                <li><strong>不要</strong>用销售开单作为入库途径(请用"无库存销售"或先入库再销售)</li>
+                <li><strong>不要</strong>多人同时编辑同一品牌型号(可能产生覆盖，后写入的胜出)</li>
+                <li><strong>不要</strong>删除有销售记录的品牌型号(会导致销售单显示异常)</li>
+              </ul>
+              <div class="tip">有未覆盖的问题请联系系统管理员，持续更新本文档。</div>
+            </section>
+          </section>
+        </div>
+        <div v-show="activeChapter === 10" class="chapter glass">
+          <h2 class="ch-title">十、售后记录</h2>
+
+          <section class="sec">
+            <h3 class="sec-title">10.1 售后记录的概念</h3>
+            <div class="tip">售后记录用于跟踪手机售出后的维修、换机、退货等售后服务情况，与销售单关联，但不直接修改销售单数据。</div>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">10.2 售后记录的核心字段</h3>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>字段</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>售后单号</td><td>自动生成，格式 <code>AS-YYYYMMDD-NNNN</code></td></tr>
+                  <tr><td>关联销售单</td><td>对应原销售单(必填)</td></tr>
+                  <tr><td>客户姓名/电话</td><td>冗余存储，便于查找</td></tr>
+                  <tr><td>商品信息</td><td>品牌、型号、IMEI(从销售单复制)</td></tr>
+                  <tr><td>售后类型</td><td>维修 / 换机 / 退货 / 其他</td></tr>
+                  <tr><td>问题描述</td><td>客户反馈的问题</td></tr>
+                  <tr><td>处理结果</td><td>处理过程记录</td></tr>
+                  <tr><td>状态</td><td>处理中 / 已完成 / 已取消</td></tr>
+                  <tr><td>费用</td><td>实际产生的费用(可为 0)</td></tr>
+                  <tr><td>处理人</td><td>售后处理人(用户)</td></tr>
+                  <tr><td>创建时间</td><td>售后单创建时间</td></tr>
+                  <tr><td>完成时间</td><td>售后单完成时间(状态变为已完成时)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">10.3 创建售后记录</h3>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">10.3.1 从销售单发起(推荐)</h4>
+              <ol>
+                <li>进入管理后台 &gt; <strong>销售记录</strong></li>
+                <li>找到需要售后的销售单，点击<strong>详情</strong></li>
+                <li>在详情页底部，点击<strong>创建售后记录</strong></li>
+                <li>系统自动填充商品信息、IMEI、客户信息</li>
+                <li>填写售后类型、问题描述、费用(可选)</li>
+                <li>点击<strong>保存</strong> → 售后单创建成功</li>
+              </ol>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">10.3.2 售后模块独立创建</h4>
+              <ol>
+                <li>进入管理后台 &gt; <strong>售后记录</strong></li>
+                <li>点击<strong>新建售后单</strong></li>
+                <li>选择关联销售单(必填)</li>
+                <li>手动填写其他字段</li>
+                <li>点击<strong>保存</strong></li>
+              </ol>
+            </section>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">10.4 售后状态管理</h3>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>状态</th><th>说明</th><th>可执行操作</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>处理中</td><td>售后单刚创建，正在处理</td><td>编辑、完成、取消</td></tr>
+                  <tr><td>已完成</td><td>售后处理完成</td><td>查看详情、打印凭证</td></tr>
+                  <tr><td>已取消</td><td>售后单作废</td><td>查看详情</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <ul>
+              <li>状态从<strong>处理中 → 已完成</strong>：填写处理结果(必填)，系统记录完成时间</li>
+              <li>状态从<strong>处理中 → 已取消</strong>：填写取消原因(必填)，售后单不参与统计</li>
+            </ul>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">10.5 售后统计与查询</h3>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">10.5.1 查询</h4>
+              <ol>
+                <li>进入管理后台 &gt; <strong>售后记录</strong></li>
+                <li>支持按时间范围、状态、售后类型、处理人筛选</li>
+                <li>支持搜索：客户姓名、电话、IMEI、售后单号</li>
+              </ol>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">10.5.2 统计</h4>
+              <ul>
+                <li>顶部卡片：今日售后单数、处理中数量、本月售后数</li>
+                <li>表格底部：按售后类型汇总(维修 N 单 / 换机 M 单 / 退货 K 单)</li>
+                <li>支持按时间范围导出</li>
+              </ul>
+            </section>
+
+            <section class="sub-sec">
+              <h4 class="sub-title">10.5.3 与销售单的关系</h4>
+              <ul>
+                <li>售后单<strong>不修改</strong>原销售单(销售单金额、IMEI 等保持不变)</li>
+                <li>销售单详情页底部展示<strong>所有关联售后单</strong>(列表形式)</li>
+                <li>同一销售单可创建<strong>多个</strong>售后单(支持多次维修)</li>
+              </ul>
+            </section>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">10.6 售后费用处理</h3>
+            <div class="tip">售后费用需要单独走财务流程，不在销售金额中自动扣减。</div>
+            <ul>
+              <li>售后单上的<strong>费用</strong>字段仅用于记录</li>
+              <li>实际收款/退款由门店自行处理</li>
+              <li>若涉及退款，需在系统中创建<strong>退货销售单</strong>(售价为负)</li>
+              <li>售后单与退货销售单互不强制关联，通过手工记录对齐</li>
+            </ul>
+          </section>
+
+          <section class="sec">
+            <h3 class="sec-title">10.7 售后记录的最佳实践</h3>
+            <ul>
+              <li><strong>及时创建</strong>：客户反馈问题当天就创建售后单，避免遗忘</li>
+              <li><strong>问题描述具体</strong>：写清楚故障现象，便于工程师判断</li>
+              <li><strong>处理过程留痕</strong>：在"处理结果"中记录处理步骤、换件情况、客户沟通要点</li>
+              <li><strong>客户信息冗余存储</strong>：即使客户换号，售后单仍可查询</li>
+              <li><strong>定期回访</strong>：已完成的售后单，可定期回访客户使用情况</li>
+              <li><strong>数据分析</strong>：通过售后统计发现高频问题机型，反馈给采购</li>
+            </ul>
+            <div class="tip">售后记录是客户关系的重要数据，务必认真填写。</div>
+          </section>
         </div>
       </div>
     </div>
@@ -673,6 +1079,7 @@ const chapters = [
   { id: 7, label: '数据统计与看板' },
   { id: 8, label: '系统管理' },
   { id: 9, label: '常见问题' },
+  { id: 10, label: '售后记录' },
 ]
 </script>
 
