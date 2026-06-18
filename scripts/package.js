@@ -164,7 +164,7 @@ function main() {
     console.log('[1/5] Building all projects...');
     // Prisma client 必须在 tsc 之前重新生成，否则类型检查会失败
     console.log('  Regenerating Prisma client...');
-    run('pnpm --filter @phone-sales/server prisma:generate');
+    run('npx prisma generate', path.join(ROOT, 'server'));
     run('pnpm build');
   } else {
     console.log('[1/5] Skipping build (use existing artifacts)');
@@ -220,22 +220,32 @@ function main() {
 
   // 3.3 Copy Prisma engine + wrapper (the ONLY external deps the bundle needs)
   console.log('  Copying Prisma engine...');
-  const releaseServerNodeModules = path.join(RELEASE_DIR, 'server', 'node_modules');
-  const prismaGeneratedSrc = path.join(ROOT, 'node_modules', '.prisma', 'client');
-  const prismaGeneratedDest = path.join(releaseServerNodeModules, '.prisma', 'client');
-  if (fs.existsSync(prismaGeneratedSrc)) {
-    fs.mkdirSync(path.dirname(prismaGeneratedDest), { recursive: true });
-    robocopy(prismaGeneratedSrc, prismaGeneratedDest);
-  } else {
-    // pnpm store fallback
-    const storePath = path.join(ROOT, 'node_modules', '.pnpm', '@prisma+client@5.22.0', 'node_modules', '.prisma', 'client');
-    if (fs.existsSync(storePath)) {
-      fs.mkdirSync(path.dirname(prismaGeneratedDest), { recursive: true });
-      robocopy(storePath, prismaGeneratedDest);
+    const releaseServerNodeModules = path.join(RELEASE_DIR, 'server', 'node_modules');
+
+    // Find prisma client in pnpm store (actual name includes peer dep suffix like @prisma+client@5.22.0_prisma@5.22.0)
+    let prismaClientDir = '';
+    const pnpmDir = path.join(ROOT, 'node_modules', '.pnpm');
+    if (fs.existsSync(pnpmDir)) {
+      const entries = fs.readdirSync(pnpmDir);
+      const clientDir = entries.find(e => e.startsWith('@prisma+client@'));
+      if (clientDir) {
+        prismaClientDir = path.join(pnpmDir, clientDir, 'node_modules', '.prisma', 'client');
+      }
+    }
+
+    if (!prismaClientDir || !fs.existsSync(prismaClientDir)) {
+      // Fallback: check if the directory exists directly in node_modules
+      const directPath = path.join(ROOT, 'node_modules', '.prisma', 'client');
+      if (fs.existsSync(directPath)) prismaClientDir = directPath;
+    }
+
+    if (prismaClientDir && fs.existsSync(prismaClientDir)) {
+      fs.mkdirSync(path.dirname(path.join(releaseServerNodeModules, '.prisma', 'client')), { recursive: true });
+      robocopy(prismaClientDir, path.join(releaseServerNodeModules, '.prisma', 'client'));
+      console.log('  Prisma engine copied.');
     } else {
       console.warn('  WARNING: Prisma client engine not found! Prisma may not work.');
     }
-  }
 
   // 3.4 Copy @prisma/client wrapper
   console.log('  Copying @prisma/client wrapper...');
