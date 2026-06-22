@@ -86,8 +86,7 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
                 brand_id: brand.id,
                 name: item.model_name,
                 color: item.color || '',
-                ram: item.storage?.split('/')[0] || '',
-                rom: item.storage?.split('/')[1] || '',
+                memory: item.storage || '',
                 sale_price: item.unit_price,
               },
             });
@@ -119,7 +118,7 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
           brandName: modelRec?.brand?.name || item.brand_name,
           modelName: modelRec?.name || item.model_name,
           color: modelRec?.color || item.color || '',
-          storage: [modelRec?.ram, modelRec?.rom].filter(Boolean).join('/') || item.storage || '',
+          storage: modelRec?.memory || item.storage || '',
           imei: item.imei,
           imei2: item.imei2 || null,
           sn_code: item.sn_code || null,
@@ -316,7 +315,7 @@ router.post('/sales', async (req: Request, res: Response) => {
         const brandName = record.model?.brand?.name || '';
         const modelName = record.model?.name || '';
         const color = record.model?.color || '';
-        const storage = [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '';
+        const storage = record.model?.memory || '';
 
         // 使用用户传入的 imei2/sn_code（如有），否则保留原值
         const finalImei2 = imei2 !== undefined ? imei2 : record.imei2;
@@ -465,7 +464,7 @@ router.get('/sales', async (req: Request, res: Response) => {
         orderBy: { created_at: 'desc' },
         include: {
           store: { select: { id: true, name: true } },
-          model: { select: { id: true, name: true, color: true, ram: true, rom: true, brand: { select: { id: true, name: true } } } },
+          model: { select: { id: true, name: true, color: true, memory: true, brand: { select: { id: true, name: true } } } },
           operator: { select: { id: true, real_name: true } },
           items: { select: { id: true, imei: true, imei2: true, sn_code: true, model_name: true } },
         },

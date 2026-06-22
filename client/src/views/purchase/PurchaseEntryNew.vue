@@ -32,7 +32,7 @@
             <el-option v-for="brand in brands" :key="brand.id" :label="brand.name" :value="brand.id" />
           </el-select>
           <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable style="width: 300px;" :disabled="!searchBrandId">
-            <el-option v-for="model in models" :key="model.id" :label="`${model.name} - ${model.color || ''}/${model.ram || ''}/${model.rom || ''}  ¥${model.salePrice || 0}`" :value="model.id" />
+            <el-option v-for="model in models" :key="model.id" :label="`${model.name} - ${model.color || ''}/${model.memory || ''}  ¥${model.salePrice || 0}`" :value="model.id" />
           </el-select>
           <div class="pbm-field" style="flex:1;min-width:120px;">
             <label>单价</label>

@@ -80,7 +80,7 @@
               @mouseenter="brandHighlightIdx = idx"
             >
               <span class="brand-dd-name">{{ m.brand?.name }} {{ m.name }}</span>
-              <span class="brand-dd-spec">{{ [m.color, [m.ram, m.rom].filter(Boolean).join('/')].filter(Boolean).join(' · ') }}</span>
+              <span class="brand-dd-spec">{{ [m.color, m.memory].filter(Boolean).join(' · ') }}</span>
               <span class="brand-dd-price">¥{{ (m.sale_price || 0).toFixed(2) }}</span>
             </div>
             <div v-if="brandInput.trim() && !brandExactMatch" class="brand-dropdown-empty">
@@ -90,7 +90,7 @@
           </div>
           <!-- 已选品牌型号标签 -->
           <div v-if="selectedModel" class="brand-selected-tag">
-            <span>{{ selectedModel.brand?.name }} {{ selectedModel.name }} - {{ selectedModel.color || '' }} {{ selectedModel.ram || '' }}{{ selectedModel.rom ? '/' + selectedModel.rom : '' }}</span>
+            <span>{{ selectedModel.brand?.name }} {{ selectedModel.name }} - {{ selectedModel.color || '' }} {{ selectedModel.memory || '' }}</span>
             <button class="brand-selected-clear" @click="clearSelectedModel">&times;</button>
           </div>
         </div>
@@ -103,7 +103,16 @@
           </div>
           <div class="imei-entry-row" style="margin-top:12px;">
             <span class="settle-label">IMEI1</span>
-            <input ref="imei1Ref" v-model="noStockImei1" class="imei-entry-input" placeholder="扫码或输入 IMEI1" @keyup.enter="focusImei2" />
+            <div class="imei1-input-wrap">
+              <input ref="imei1Ref" v-model="noStockImei1" class="imei-entry-input" :class="{ 'input-error': noStockImeiError }" placeholder="扫码或输入 IMEI1" @keyup.enter="focusImei2" />
+              <div v-if="noStockImeiError" class="no-stock-imei-error-tip">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {{ noStockImeiError }}
+              </div>
+              <div v-if="noStockImeiChecking" class="no-stock-imei-checking">
+                <span class="checking-spinner"></span> 校验中...
+              </div>
+            </div>
           </div>
           <div class="imei-entry-row">
             <span class="settle-label">IMEI2</span>
@@ -170,17 +179,17 @@
     </div>
 
     <!-- 统计时段选择 -->
-    <div class="time-range-bar">
+    <!-- <div class="time-range-bar">
       <el-select v-model="timeRange" size="large" style="width:150px;">
         <el-option label="最近3个月" value="3m" />
         <el-option label="本月" value="thisMonth" />
         <el-option label="本年" value="thisYear" />
       </el-select>
       <span class="time-range-text">{{ timeRangeLabel }}</span>
-    </div>
+    </div> -->
 
     <!-- 销售额趋势（全宽） -->
-    <div class="data-card glass" style="margin-bottom:20px;">
+    <!-- <div class="data-card glass" style="margin-bottom:20px;">
       <div class="data-card-header">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
         销售额趋势
@@ -190,8 +199,38 @@
       </div>
     </div>
 
+    <!-- 商品广场 -->
+    <div class="data-card glass" style="margin-bottom:20px;">
+      <div class="data-card-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        商品广场
+        <span class="showcase-count">{{ flatModels.length }} 个型号</span>
+        <div class="showcase-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="showcaseKeyword" class="showcase-input" placeholder="搜索品牌 / 型号..." />
+        </div>
+      </div>
+      <div v-if="showcaseLoading" class="showcase-loading">加载中...</div>
+      <div v-else-if="filteredBrands.length === 0" class="empty-data">暂无型号数据</div>
+      <div v-else class="showcase-body">
+        <div v-for="brand in filteredBrands" :key="brand.id" class="showcase-brand-group">
+          <div class="showcase-brand-header">
+            <span class="showcase-brand-name">{{ brand.name }}</span>
+            <span class="showcase-brand-count">{{ brand.models.length }} 款</span>
+          </div>
+          <div class="showcase-model-grid">
+            <div v-for="m in brand.models" :key="m.id" class="showcase-model-card">
+              <div class="showcase-model-name">{{ m.name }}</div>
+              <div class="showcase-model-spec">{{ [m.color, m.memory].filter(Boolean).join(' · ') }}</div>
+              <div class="showcase-model-price">¥{{ (m.sale_price || 0).toFixed(2) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 双列：品牌库存 + 售出排行 -->
-    <div class="data-grid-2col">
+    <!-- <div class="data-grid-2col">
       <div class="data-card glass">
         <div class="data-card-header">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
@@ -214,10 +253,10 @@
           <HorizontalBarChart :data="topProductsData" color="#F97316" />
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- 双列记录 -->
-    <div class="dual-records">
+    <!-- <div class="dual-records">
       <div class="data-card glass">
         <div class="data-card-header">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -250,7 +289,7 @@
           <div v-if="!recentEntries.length" class="empty-data">暂无入库记录</div>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- 入库详情弹窗 -->
     <el-dialog v-model="entryDetailVisible" title="入库详情" width="700px" :close-on-click-modal="false" class="entry-detail-dialog">
@@ -275,7 +314,7 @@
             <template #default="{ row }">
               <span class="entry-model-cell">
                 <span class="entry-model-brand">{{ row.model?.brand?.name }}</span>
-                {{ row.model?.name }} {{ row.model?.color || '' }} {{ [row.model?.ram, row.model?.rom].filter(Boolean).join('/') }}
+                {{ row.model?.name }} {{ row.model?.color || '' }} {{ row.model?.memory || '' }}
               </span>
             </template>
           </el-table-column>
@@ -363,10 +402,10 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { scanImeiForSale, getBrandInventory } from '@/api/inventory'
-import { getPurchaseEntries, getPurchaseEntry } from '@/api/purchase'
+import { getPurchaseEntries, getPurchaseEntry, checkImeiExists } from '@/api/purchase'
 import { getDashboard, getSalesStats, getTopProducts } from '@/api/stats'
 import { createSale, createNoStockSale, getSalePrintData, getSalesList, getSaleDetail } from '@/api/sales'
-import { getModels } from '@/api/product'
+import { getBrands, getModels } from '@/api/product'
 import LineChart from '@/components/LineChart.vue'
 import HorizontalBarChart from '@/components/HorizontalBarChart.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -398,6 +437,9 @@ const noStockPrice = ref(0)
 const noStockImei1 = ref('')
 const noStockImei2 = ref('')
 const noStockSn = ref('')
+const noStockImeiError = ref('')
+const noStockImeiChecking = ref(false)
+let noStockImeiCheckTimer: ReturnType<typeof setTimeout> | null = null
 const brandSaveMarked = ref<Set<string>>(new Set())
 
 // 保存品牌型号弹窗
@@ -472,6 +514,36 @@ const recentSales = ref<any[]>([])
 const brandStockRaw = ref<any[]>([])
 const recentEntries = ref<any[]>([])
 
+// 商品广场
+const showcaseKeyword = ref('')
+const showcaseLoading = ref(false)
+const showcaseBrands = ref<any[]>([])
+
+const flatModels = computed(() => {
+  const list: any[] = []
+  for (const b of showcaseBrands.value) {
+    for (const m of b.models || []) {
+      list.push({ ...m, brandName: b.name })
+    }
+  }
+  return list
+})
+
+const filteredBrands = computed(() => {
+  const kw = showcaseKeyword.value.trim().toLowerCase()
+  if (!kw) return showcaseBrands.value
+  return showcaseBrands.value
+    .map(b => ({
+      ...b,
+      models: (b.models || []).filter((m: any) =>
+        b.name.toLowerCase().includes(kw) ||
+        (m.name || '').toLowerCase().includes(kw) ||
+        (m.color || '').toLowerCase().includes(kw)
+      ),
+    }))
+    .filter(b => b.models.length > 0)
+})
+
 // 入库详情弹窗
 const entryDetailVisible = ref(false)
 const entryDetailData = ref<any>(null)
@@ -531,7 +603,20 @@ async function loadAll() {
   await Promise.all([
     loadAllDataOnly(),
     loadRecentSales(),
+    loadShowcase(),
   ])
+}
+
+async function loadShowcase() {
+  showcaseLoading.value = true
+  try {
+    const brands = await getBrands()
+    showcaseBrands.value = (brands || []).filter((b: any) => b.models && b.models.length > 0)
+  } catch {
+    showcaseBrands.value = []
+  } finally {
+    showcaseLoading.value = false
+  }
 }
 
 async function loadRecentSales() {
@@ -672,6 +757,37 @@ function clearSelectedModel() {
 function focusImei2() { nextTick(() => imei2Ref.value?.focus()) }
 function focusSn() { nextTick(() => snRef.value?.focus()) }
 
+// 无库存销售 IMEI 自动校验
+watch(noStockImei1, (val) => {
+  const trimmed = val.trim()
+  if (!trimmed) {
+    noStockImeiError.value = ''
+    if (noStockImeiCheckTimer) { clearTimeout(noStockImeiCheckTimer); noStockImeiCheckTimer = null }
+    return
+  }
+  if (trimmed.length >= 15) {
+    if (noStockImeiCheckTimer) clearTimeout(noStockImeiCheckTimer)
+    noStockImeiCheckTimer = setTimeout(async () => {
+      noStockImeiChecking.value = true
+      try {
+        const data = await checkImeiExists(trimmed)
+        if (data?.exists) {
+          const status = data.record?.status === 'sold' ? '已售出' : '已在库'
+          noStockImeiError.value = `IMEI ${trimmed} ${status}，不能作为无库存销售`
+        } else {
+          noStockImeiError.value = ''
+        }
+      } catch {
+        // 静默跳过
+      } finally {
+        noStockImeiChecking.value = false
+      }
+    }, 300)
+  } else {
+    noStockImeiError.value = ''
+  }
+})
+
 function addNoStockItem() {
   if (!brandInput.value.trim()) {
     ElMessage.warning('请输入品牌型号')
@@ -681,6 +797,11 @@ function addNoStockItem() {
     ElMessage.warning('请输入 IMEI1')
     return
   }
+  // IMEI 重复性校验 — 库存中存在则不能作为无库存销售
+  if (noStockImeiError.value) {
+    ElMessage.warning(noStockImeiError.value)
+    return
+  }
   const rawText = brandInput.value.trim()
   const brand = selectedModel.value?.brand?.name || ''
   const modelName = selectedModel.value?.name || ''
@@ -688,7 +809,7 @@ function addNoStockItem() {
     brandName: brand || rawText,
     modelName: modelName || '',
     color: selectedModel.value?.color || '',
-    storage: [selectedModel.value?.ram, selectedModel.value?.rom].filter(Boolean).join('/') || '',
+    storage: selectedModel.value?.memory || '',
     imei: noStockImei1.value.trim(),
     imei2: noStockImei2.value.trim() || null,
     snCode: noStockSn.value.trim() || null,
@@ -702,6 +823,7 @@ function addNoStockItem() {
   noStockImei1.value = ''
   noStockImei2.value = ''
   noStockSn.value = ''
+  noStockImeiError.value = ''
   noStockPrice.value = selectedModel.value?.sale_price || 0
   if (!selectedModel.value) brandInput.value = ''
   nextTick(() => imei1Ref.value?.focus())
@@ -733,9 +855,11 @@ async function handleScan() {
     cart.value.push({
       brandName: item.brandName || '',
       modelName: item.modelName || '',
+      color: item.color || '',
+      storage: item.storage || '',
       imei: item.imei,
       imei2: item.imei2 || null,
-      snCode: null,
+      snCode: item.sn_code || null,
       price: item.salePrice || 0,
     })
     paidAmount.value = totalAmount.value
@@ -787,7 +911,9 @@ async function doNormalPay() {
   try {
     const result = await createSale({
       items: cart.value.map(i => ({ imei: i.imei, unit_price: i.price, imei2: i.imei2 || null, sn_code: i.snCode || null })),
-      actual_amount: totalAmount.value,
+      actual_amount: paidAmount.value,
+      total_amount: totalAmount.value,
+      change_amount: paidAmount.value - totalAmount.value,
       customer_name: customerName.value || undefined,
       customer_phone: customerPhone.value || undefined,
       customer_address: customerAddress.value || undefined,
@@ -858,7 +984,9 @@ async function submitNoStockSale() {
         sn_code: i.snCode || null,
         unit_price: i.price,
       })),
-      actual_amount: totalAmount.value,
+      actual_amount: paidAmount.value,
+      total_amount: totalAmount.value,
+      change_amount: paidAmount.value - totalAmount.value,
       customer_name: customerName.value || undefined,
       customer_phone: customerPhone.value || undefined,
       customer_address: customerAddress.value || undefined,
@@ -985,6 +1113,12 @@ function resetCart() {
 .imei-entry-input:focus { border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
 .imei-add-btn { padding: 10px 28px; border: none; border-radius: var(--radius-sm); background: #2563EB; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .imei-add-btn:hover { filter: brightness(0.92); }
+.imei1-input-wrap { flex: 1; max-width: 280px; }
+.imei-entry-input.input-error { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.no-stock-imei-error-tip { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 13px; color: var(--danger); }
+.no-stock-imei-checking { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; color: var(--text-tertiary); }
+.checking-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* 统计时段 */
 .time-range-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
@@ -1018,6 +1152,25 @@ function resetCart() {
 .record-amount { font-size: 14px; font-weight: 600; color: var(--text); font-family: monospace; flex-shrink: 0; }
 .record-qty { font-size: 14px; font-weight: 600; color: var(--primary); font-family: monospace; flex-shrink: 0; }
 .empty-data { font-size: 13px; color: var(--text-tertiary); padding: 12px 0; text-align: center; }
+
+/* 商品广场 */
+.showcase-count { font-size: 12px; font-weight: 500; color: var(--text-tertiary); margin-left: -2px; }
+.showcase-search { display: flex; align-items: center; gap: 6px; margin-left: auto; padding: 4px 10px; background: rgba(255,255,255,0.6); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.showcase-search svg { color: var(--text-tertiary); flex-shrink: 0; }
+.showcase-input { border: none; outline: none; background: transparent; font-size: 13px; font-family: inherit; color: var(--text); width: 160px; }
+.showcase-input::placeholder { color: var(--text-tertiary); }
+.showcase-loading { padding: 20px 0; text-align: center; font-size: 14px; color: var(--text-tertiary); }
+.showcase-body { display: flex; flex-direction: column; gap: 20px; }
+.showcase-brand-group { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.showcase-brand-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(139,92,246,0.06); border-bottom: 1px solid var(--border); }
+.showcase-brand-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.showcase-brand-count { font-size: 12px; color: var(--text-tertiary); font-weight: 500; }
+.showcase-model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; background: #fff; padding: 16px; }
+.showcase-model-card { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); transition: all 0.15s; }
+.showcase-model-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-2px); border-color: var(--primary); }
+.showcase-model-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.showcase-model-spec { font-size: 11px; color: var(--text-tertiary); }
+.showcase-model-price { font-size: 16px; font-weight: 700; color: var(--primary); font-family: 'SF Mono', monospace; margin-top: 4px; }
 
 /* 统一样式覆盖 */
 :deep(.el-input-number) { --el-component-size: 38px; }

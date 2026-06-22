@@ -17,10 +17,11 @@ router.get('/brands', async (req: Request, res: Response) => {
       orderBy: { id: 'asc' },
       include: {
         models: {
-          select: { id: true, name: true, color: true, ram: true, rom: true, sale_price: true, cost_price: true },
+          select: { id: true, name: true, color: true, memory: true, sale_price: true, cost_price: true },
+          where: { status: 1 },
           orderBy: { id: 'asc' },
         },
-        _count: { select: { models: true } },
+        _count: { select: { models: { where: { status: 1 } } } },
       },
     });
     const r: ApiResponse = { code: 200, message: 'success', data: brands };
@@ -83,7 +84,7 @@ router.delete('/brands/:id', async (req: Request, res: Response) => {
 router.get('/models', async (req: Request, res: Response) => {
   try {
     const { brand_id, keyword } = req.query;
-    const where: any = {};
+    const where: any = { status: 1 };
     if (brand_id) where.brand_id = parseInt(brand_id as string);
     if (keyword) {
       where.OR = [
@@ -106,13 +107,13 @@ router.get('/models', async (req: Request, res: Response) => {
 
 router.post('/models', async (req: Request, res: Response) => {
   try {
-    const { brand_id, name, color, ram, rom, sale_price, cost_price, manufacturer_barcode, image_path, launch_year, os_type, network_type, screen_size, cpu, battery, description } = req.body;
+    const { brand_id, name, color, memory, sale_price, cost_price, image_path, is_subsidy, description } = req.body;
     if (!brand_id || !name) {
       const r: ApiResponse = { code: 400, message: '品牌ID和型号名称不能为空' };
       return res.status(400).json(r);
     }
     const model = await prisma.pdt_model.create({
-      data: { brand_id, name, color, ram, rom, sale_price: sale_price ?? 0, cost_price, manufacturer_barcode, image_path, launch_year, os_type, network_type, screen_size, cpu, battery, description },
+      data: { brand_id, name, color, memory, sale_price: sale_price ?? 0, cost_price, image_path, is_subsidy: is_subsidy ?? false, description },
     });
     const r: ApiResponse = { code: 200, message: '创建成功', data: model };
     return res.json(r);
@@ -125,10 +126,10 @@ router.post('/models', async (req: Request, res: Response) => {
 router.put('/models/:id', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    const { brand_id, name, color, ram, rom, sale_price, cost_price, manufacturer_barcode, launch_year, os_type, network_type, screen_size, cpu, battery, description, status } = req.body;
+    const { brand_id, name, color, memory, sale_price, cost_price, image_path, is_subsidy, description, status } = req.body;
     const model = await prisma.pdt_model.update({
       where: { id },
-      data: { brand_id, name, color, ram, rom, sale_price, cost_price, manufacturer_barcode, launch_year, os_type, network_type, screen_size, cpu, battery, description, status },
+      data: { brand_id, name, color, memory, sale_price, cost_price, image_path, is_subsidy, description, status },
     });
     const r: ApiResponse = { code: 200, message: '更新成功', data: model };
     return res.json(r);
@@ -141,7 +142,8 @@ router.put('/models/:id', async (req: Request, res: Response) => {
 router.delete('/models/:id', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    await prisma.pdt_model.delete({ where: { id } });
+    // 软删除：将 status 设为 0，保留数据以维持外键引用完整性
+    await prisma.pdt_model.update({ where: { id }, data: { status: 0 } });
     const r: ApiResponse = { code: 200, message: '删除成功' };
     return res.json(r);
   } catch (err: any) {
@@ -150,48 +152,10 @@ router.delete('/models/:id', async (req: Request, res: Response) => {
   }
 });
 
-// 扫码查询型号（通过条码）
+// 扫码查询型号（已移除条码字段，此接口不再可用）
 router.get('/scan-barcode', async (req: Request, res: Response) => {
-  try {
-    const { barcode } = req.query;
-    if (!barcode) {
-      const r: ApiResponse = { code: 400, message: '条码不能为空' };
-      return res.status(400).json(r);
-    }
-
-    const model = await prisma.pdt_model.findFirst({
-      where: { manufacturer_barcode: barcode as string },
-      include: { brand: { select: { id: true, name: true } } },
-    });
-
-    if (!model) {
-      const r: ApiResponse = { code: 404, message: '未找到该条码对应的商品' };
-      return res.status(404).json(r);
-    }
-
-    const r: ApiResponse = {
-      code: 200,
-      message: 'success',
-      data: {
-        id: model.id,
-        brandId: model.brand.id,
-        brandName: model.brand.name,
-        modelId: model.id,
-        modelName: model.name,
-        color: model.color,
-        ram: model.ram,
-        rom: model.rom,
-        salePrice: model.sale_price,
-        costPrice: model.cost_price,
-        barcode: model.manufacturer_barcode,
-        imagePath: model.image_path,
-      },
-    };
-    return res.json(r);
-  } catch (err: any) {
-    const r: ApiResponse = { code: 500, message: err.message };
-    return res.status(500).json(r);
-  }
+  const r: ApiResponse = { code: 404, message: '条码查询功能已移除' };
+  return res.status(404).json(r);
 });
 
 // 搜索型号
@@ -204,8 +168,8 @@ router.get('/models/search', async (req: Request, res: Response) => {
     }
     const models = await prisma.pdt_model.findMany({
       where: {
+        status: 1,
         OR: [
-          { manufacturer_barcode: { contains: keyword as string } },
           { name: { contains: keyword as string } },
           { color: { contains: keyword as string } },
         ],
@@ -220,12 +184,9 @@ router.get('/models/search', async (req: Request, res: Response) => {
       brandName: m.brand?.name || '',
       modelName: m.name,
       color: m.color || '',
-      ram: m.ram || '',
-      rom: m.rom || '',
-      storage: [m.ram, m.rom].filter(Boolean).join('/') || '',
+      memory: m.memory || '',
       salePrice: m.sale_price || 0,
       costPrice: m.cost_price || 0,
-      barcode: m.manufacturer_barcode || '',
     }));
     const r: ApiResponse = { code: 200, message: 'success', data: result };
     return res.json(r);
@@ -296,11 +257,10 @@ router.get('/models/export', async (req: Request, res: Response) => {
       '品牌': r.brand?.name || '',
       '型号名称': r.name,
       '颜色': r.color || '',
-      'RAM': r.ram || '',
-      'ROM': r.rom || '',
+      '内存': r.memory || '',
       '售价': r.sale_price || 0,
       '成本价': r.cost_price || 0,
-      '条码': r.manufacturer_barcode || '',
+      '国补': r.is_subsidy ? '是' : '否',
       '状态': r.status === 1 ? '启用' : '禁用',
     }));
     const wb = XLSX.utils.book_new();
@@ -341,16 +301,9 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
       '品牌名': 'brandName', '品牌': 'brandName', 'brand': 'brandName', 'brandName': 'brandName',
       '型号名': 'name', '型号名称': 'name', '型号': 'name', 'name': 'name',
       '颜色': 'color', 'color': 'color',
-      '操作系统': 'osType', '系统': 'osType', 'osType': 'osType',
-      '屏幕尺寸': 'screenSize', '屏幕': 'screenSize', 'screenSize': 'screenSize',
-      '处理器': 'cpu', 'cpu': 'cpu',
-      '运行内存': 'ram', '内存': 'ram', 'ram': 'ram',
-      '存储容量': 'rom', '存储': 'rom', 'rom': 'rom',
-      '电池容量': 'battery', '电池': 'battery', 'battery': 'battery',
-      '网络制式': 'networkType', '网络': 'networkType', 'networkType': 'networkType',
-      '上市年份': 'launchYear', '年份': 'launchYear', 'launchYear': 'launchYear',
-      '条码': 'barcode', '出厂条码': 'barcode', 'barcode': 'barcode',
+      '内存': 'memory', '运行内存': 'memory', '存储容量': 'memory', '存储': 'memory', 'ram': 'memory', 'rom': 'memory',
       '描述': 'description', 'description': 'description',
+      '国补': 'subsidy', '是否国补': 'subsidy', 'subsidy': 'subsidy',
     };
 
     // 按品牌分组
@@ -396,17 +349,10 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
           brand_id: brand.id,
           name: modelName,
           color: data.color || null,
-          ram: data.ram || null,
-          rom: data.rom || null,
+          memory: data.memory || null,
           sale_price: 0,
           cost_price: null,
-          manufacturer_barcode: data.barcode || null,
-          os_type: data.osType || null,
-          launch_year: data.launchYear ? Number(data.launchYear) : null,
-          network_type: data.networkType || null,
-          screen_size: data.screenSize || null,
-          cpu: data.cpu || null,
-          battery: data.battery || null,
+          is_subsidy: data.subsidy === '是' || data.subsidy === 'true' || data.subsidy === true || false,
           description: data.description || null,
         };
 

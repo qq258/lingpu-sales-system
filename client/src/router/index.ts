@@ -32,6 +32,7 @@ const routes = [
       { path: 'after-sales/new', component: () => import('@/views/after-sales/AfterSaleNew.vue'), meta: { title: '新建工单' } },
       { path: 'after-sales/:id', component: () => import('@/views/after-sales/AfterSaleDetail.vue'), meta: { title: '工单详情' } },
       { path: 'system/user', component: () => import('@/views/system/UserList.vue'), meta: { title: '用户管理', roles: ['super_admin', 'store_admin'] } },
+      { path: 'settings/warranty', component: () => import('@/views/settings/WarrantySetting.vue'), meta: { title: '保修设置' } },
     ],
   },
 ]

@@ -15,6 +15,11 @@ export async function getPurchaseEntry(id: number) {
   return res.data
 }
 
+export async function checkImeiExists(imei: string) {
+  const res: any = await request.get('/purchase/check-imei', { params: { imei } })
+  return res.data
+}
+
 export async function quickConfirmPurchaseEntry(data: {
   supplierId?: number | null; remark?: string; storeId?: number;
   items: Array<{ modelId: number; imei: string; imei2?: string; snCode?: string; unitPrice: number }>

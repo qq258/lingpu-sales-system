@@ -59,17 +59,17 @@
             @mouseenter="brandHighlightIdx = idx"
           >
             <span class="brand-dd-name">{{ m.brand?.name }} {{ m.name }}</span>
-            <span class="brand-dd-spec">{{ [m.color, [m.ram, m.rom].filter(Boolean).join('/')].filter(Boolean).join(' · ') }}</span>
-            <span class="brand-dd-price">¥{{ (m.sale_price || 0).toFixed(2) }}</span>
+            <span class="brand-dd-spec">{{ [m.color, m.memory].filter(Boolean).join(' · ') }}</span>
+              <span class="brand-dd-price">¥{{ (m.sale_price || 0).toFixed(2) }}</span>
+            </div>
+            <div v-if="brandInput.trim() && !brandExactMatch" class="brand-dropdown-empty">
+              <span>未找到匹配项，将保存为新品牌型号</span>
+              <button class="brand-save-btn" @click.stop="openSaveBrandFromSearch">保存</button>
+            </div>
           </div>
-          <div v-if="brandInput.trim() && !brandExactMatch" class="brand-dropdown-empty">
-            <span>未找到匹配项，将保存为新品牌型号</span>
-            <button class="brand-save-btn" @click.stop="openSaveBrandFromSearch">保存</button>
-          </div>
-        </div>
-        <!-- 已选品牌型号标签 -->
-        <div v-if="selectedModel" class="brand-selected-tag">
-          <span>{{ selectedModel.brand?.name }} {{ selectedModel.name }} - {{ selectedModel.color || '' }} {{ selectedModel.ram || '' }}{{ selectedModel.rom ? '/' + selectedModel.rom : '' }}</span>
+          <!-- 已选品牌型号标签 -->
+          <div v-if="selectedModel" class="brand-selected-tag">
+            <span>{{ selectedModel.brand?.name }} {{ selectedModel.name }} - {{ selectedModel.color || '' }} {{ selectedModel.memory || '' }}</span>
           <button class="brand-selected-clear" @click="clearSelectedModel">&times;</button>
         </div>
       </div>
@@ -457,7 +457,7 @@ function addNoStockItem() {
     brandName: brand || rawText,
     modelName: modelName || '',
     color: selectedModel.value?.color || '',
-    storage: [selectedModel.value?.ram, selectedModel.value?.rom].filter(Boolean).join('/') || '',
+    storage: selectedModel.value?.memory || '',
     imei: noStockImei1.value.trim(),
     imei2: noStockImei2.value.trim() || null,
     snCode: noStockSn.value.trim() || null,

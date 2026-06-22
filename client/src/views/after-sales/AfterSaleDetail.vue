@@ -25,7 +25,7 @@
               <div class="pbm-detail-card__body">
                 <div>IMEI：<strong>{{ order.imei?.imei || '-' }}</strong></div>
                 <div>品牌型号：<span class="pbm-tag-brand">{{ order.imei?.model?.brand?.name || '' }}</span> {{ order.imei?.model?.name || '-' }}</div>
-                <div>颜色/存储：{{ order.imei?.model?.color || '-' }} / {{ [order.imei?.model?.ram, order.imei?.model?.rom].filter(Boolean).join('/') || '-' }}</div>
+                <div>颜色/存储：{{ order.imei?.model?.color || '-' }} / {{ order.imei?.model?.memory || '-' }}</div>
               </div>
             </div>
             <div class="pbm-detail-card">

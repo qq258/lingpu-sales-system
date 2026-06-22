@@ -20,7 +20,7 @@
           <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
         </el-select>
         <el-select v-model="modelId" placeholder="型号" filterable size="large" style="width:260px;" :disabled="!brandId">
-          <el-option v-for="m in models" :key="m.id" :label="`${m.name} ${m.color||''} ${m.ram||' '}/${m.rom||' '}`.trim()" :value="m.id" />
+          <el-option v-for="m in models" :key="m.id" :label="`${m.name} ${m.color||''} ${m.memory||''}`.trim()" :value="m.id" />
         </el-select>
         <div class="price-field">
           <span class="price-label">单价</span>
@@ -29,7 +29,14 @@
       </div>
       <div class="imei-row">
         <div class="imei-input-wrap">
-          <input ref="imeiRef" v-model="imeiInput" class="input-field" placeholder="扫码或输入 IMEI（必填）" />
+          <input ref="imeiRef" v-model="imeiInput" class="input-field" :class="{ 'input-error': imeiError }" placeholder="扫码或输入 IMEI（必填）" />
+          <div v-if="imeiError" class="imei-error-tip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            {{ imeiError }}
+          </div>
+          <div v-if="imeiChecking" class="imei-checking">
+            <span class="checking-spinner"></span> 校验中...
+          </div>
         </div>
         <button class="action-btn" @click="handleAdd">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -85,10 +92,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getSuppliers, quickConfirmPurchaseEntry } from '@/api/purchase'
+import { getSuppliers, checkImeiExists, quickConfirmPurchaseEntry } from '@/api/purchase'
 import { getBrands, getModels } from '@/api/product'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
@@ -107,6 +114,9 @@ const imei2Input = ref('')
 const snCodeInput = ref('')
 const items = ref<Array<{ brandName: string; modelName: string; imei: string; imei2?: string; snCode?: string; unitPrice: number; modelId: number }>>([])
 const showConfirm = ref(false)
+const imeiError = ref('')
+const imeiChecking = ref(false)
+let imeiCheckTimer: ReturnType<typeof setTimeout> | null = null
 
 const totalAmount = computed(() => items.value.reduce((s, i) => s + i.unitPrice, 0))
 
@@ -122,19 +132,61 @@ async function onBrandChange() {
   try { models.value = await getModels(brandId.value) } catch { models.value = [] }
 }
 
+// 扫码自动校验 IMEI 重复性
+watch(imeiInput, (val) => {
+  const trimmed = val.trim()
+  // 输入为空时清除错误
+  if (!trimmed) {
+    imeiError.value = ''
+    if (imeiCheckTimer) { clearTimeout(imeiCheckTimer); imeiCheckTimer = null }
+    return
+  }
+  // 先检查当前列表中是否重复（本地即时校验）
+  if (items.value.some(i => i.imei === trimmed)) {
+    imeiError.value = 'IMEI 已存在于本次入库清单中'
+    return
+  }
+  // IMEI 标准长度 15 位，达到长度后自动触发后端校验
+  if (trimmed.length >= 15) {
+    if (imeiCheckTimer) clearTimeout(imeiCheckTimer)
+    imeiCheckTimer = setTimeout(async () => {
+      imeiChecking.value = true
+      try {
+        const data = await checkImeiExists(trimmed)
+        if (data?.exists) {
+          const status = data.record?.status === 'sold' ? '已售出' : '已在库'
+          imeiError.value = `IMEI ${trimmed} ${status}，无法重复入库`
+        } else {
+          imeiError.value = ''
+        }
+      } catch {
+        // 后端校验失败时不阻塞用户操作，仅静默跳过
+      } finally {
+        imeiChecking.value = false
+      }
+    }, 300)
+  } else {
+    imeiError.value = ''
+  }
+})
+
 function handleAdd() {
   const imei = imeiInput.value.trim()
   if (!imei) { ElMessage.warning('请输入 IMEI'); return }
   if (!modelId.value) { ElMessage.warning('请选择品牌和型号'); return }
   const m = models.value.find((x: any) => x.id === modelId.value)
   if (!m) return
-  if (items.value.some(i => i.imei === imei)) { ElMessage.warning('IMEI 已存在'); return }
+  // 本地清单重复校验
+  if (items.value.some(i => i.imei === imei)) { ElMessage.warning('IMEI 已存在于本次入库清单中'); return }
+  // 后端校验未通过时禁止添加
+  if (imeiError.value) { ElMessage.warning(imeiError.value); return }
   items.value.push({
     brandName: brands.value.find((b: any) => b.id === brandId.value)?.name || '',
-    modelName: `${m.name} ${m.color || ''} ${m.ram||''}/${m.rom||''}`.trim(),
+    modelName: `${m.name} ${m.color || ''} ${m.memory||''}`.trim(),
     imei, imei2: imei2Input.value.trim() || undefined, snCode: snCodeInput.value.trim() || undefined,
     unitPrice: unitPrice.value || m.salePrice || 0, modelId: modelId.value,
   })
+  imeiError.value = ''
   imeiInput.value = ''; imei2Input.value = ''; snCodeInput.value = ''
   nextTick(() => { imeiRef.value?.focus() })
 }
@@ -168,6 +220,12 @@ async function handleConfirm() {
 .input-field { width: 100%; height: 48px; padding: 0 16px; font-size: 17px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); outline: none; font-family: inherit; background: #fff; transition: var(--transition); }
 .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
 .input-field::placeholder { color: var(--text-tertiary); font-size: 15px; }
+.input-field.input-error { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.imei-input-wrap { position: relative; }
+.imei-error-tip { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; color: var(--danger); }
+.imei-checking { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--text-tertiary); }
+.checking-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .extra-row { display: flex; gap: 12px; margin-top: 12px; }
 .extra-field { display: flex; align-items: center; gap: 8px; flex: 1; }
 .extra-label { font-size: 13px; color: var(--text-tertiary); white-space: nowrap; font-weight: 500; }

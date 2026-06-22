@@ -36,7 +36,7 @@
                 </el-form-item>
                 <el-form-item label=" " style="flex:1;">
                   <el-select v-model="singleForm.modelId" placeholder="选择型号" filterable size="small" :disabled="!searchBrandId" style="width:100%;">
-                    <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.ram || ''}/${m.rom || ''} ¥${m.salePrice || 0}`" :value="m.id" />
+                    <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.memory || ''} ¥${m.salePrice || 0}`" :value="m.id" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="数量">
@@ -171,7 +171,7 @@ function addSingleItem() {
       brandName: model.brandName || '',
       modelName: model.name,
       color: model.color || '',
-      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+      storage: model.memory || '',
       quantity: singleForm.value.quantity,
     })
   }

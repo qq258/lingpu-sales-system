@@ -54,6 +54,13 @@ model sys_user {
   after_sale_logs    after_sale_log[]    @relation("operator")
 }
 
+model sys_setting {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  value      String   @default("")
+  updated_at DateTime @default(now()) @updatedAt
+}
+
 model sys_operation_log {
   id         Int      @id @default(autoincrement())
   user_id    Int
@@ -85,18 +92,11 @@ model pdt_model {
   brand_id     Int
   name         String
   color        String?
-  ram          String?
-  rom          String?
+  memory       String?
   sale_price   Float
   cost_price   Float?
-  manufacturer_barcode String? @unique
   image_path   String?
-  launch_year  Int?
-  os_type      String?
-  network_type String?
-  screen_size  String?
-  cpu          String?
-  battery      String?
+  is_subsidy   Boolean  @default(false)
   description  String?
   status       Int      @default(1)
   created_at   DateTime @default(now())
@@ -113,7 +113,6 @@ model pdt_model {
 
   @@index([brand_id])
   @@index([name])
-  @@index([manufacturer_barcode])
 }
 
 model pch_supplier {

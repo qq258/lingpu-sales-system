@@ -62,41 +62,19 @@
             <el-form-item label="颜色">
               <el-input v-model="m.color" placeholder="深黑色 / 白色" />
             </el-form-item>
-            <el-form-item label="操作系统">
-              <el-input v-model="m.osType" placeholder="iOS / Android" />
+            <el-form-item label="内存">
+              <el-input v-model="m.memory" placeholder="8GB/256GB" />
             </el-form-item>
-            <el-form-item label="屏幕尺寸">
-              <el-input v-model="m.screenSize" placeholder="6.7英寸" />
+            <el-form-item label="是否国补">
+              <el-switch v-model="m.isSubsidy" />
             </el-form-item>
-            <el-form-item label="上市年份">
-              <el-input-number v-model="m.launchYear" :min="2000" :max="2099" controls-position="right" style="width:100%;" placeholder="2024" />
-            </el-form-item>
-            <el-form-item label="网络制式">
-              <el-select v-model="m.networkType" placeholder="选择" clearable>
-                <el-option label="5G" value="5G" />
-                <el-option label="4G" value="4G" />
-                <el-option label="5G+4G" value="5G+4G" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="运行内存">
-              <el-input v-model="m.ram" placeholder="8GB" />
-            </el-form-item>
-            <el-form-item label="存储容量">
-              <el-input v-model="m.rom" placeholder="256GB" />
+            <el-form-item label="售价">
+              <el-input-number v-model="m.salePrice" :min="0" :precision="2" :step="100" controls-position="right" style="width:100%;" placeholder="0.00" />
             </el-form-item>
           </div>
           <el-collapse class="bme-sub-collapse">
-            <el-collapse-item title="更多规格（CPU / 电池 / 条码 / 描述）" name="more">
+            <el-collapse-item title="更多规格（描述）" name="more">
               <div class="bme-model-grid">
-                <el-form-item label="处理器">
-                  <el-input v-model="m.cpu" placeholder="A17 Pro" />
-                </el-form-item>
-                <el-form-item label="电池容量">
-                  <el-input v-model="m.battery" placeholder="4422mAh" />
-                </el-form-item>
-                <el-form-item label="出厂条码">
-                  <el-input v-model="m.barcode" placeholder="6901234567890" />
-                </el-form-item>
                 <el-form-item label="描述" class="bme-form-full">
                   <el-input v-model="m.description" type="textarea" :rows="2" placeholder="可选备注" />
                 </el-form-item>
@@ -144,10 +122,17 @@ const emit = defineEmits<{
   'save-and-new': [payload: { brand: { name: string; description?: string; id?: number }; models: Partial<ModelData>[] }]
 }>()
 
-interface ModelFormState extends Partial<ModelData> {
+interface ModelFormState {
   _key: string
   _isExisting?: boolean
   _id?: number
+  name: string
+  brandId: number
+  color?: string
+  memory?: string
+  salePrice?: number
+  isSubsidy?: boolean
+  description?: string
 }
 
 const brandFormRef = ref<FormInstance>()
@@ -182,7 +167,7 @@ const hasError = computed(() => !!brandError.value || Object.values(modelErrors.
 function makeKey() { return `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }
 
 function makeEmptyModel(): ModelFormState {
-  return { _key: makeKey(), name: '', brandId: props.brand?.id || 0 }
+  return { _key: makeKey(), name: '', brandId: props.brand?.id || 0, isSubsidy: false }
 }
 
 function initForm() {
@@ -317,15 +302,9 @@ function buildPayload() {
       brandId: props.brand?.id || 0,
       name: (m.name || '').trim(),
       color: m.color || undefined,
-      ram: m.ram || undefined,
-      rom: m.rom || undefined,
-      osType: m.osType || undefined,
-      launchYear: m.launchYear || undefined,
-      networkType: m.networkType || undefined,
-      screenSize: m.screenSize || undefined,
-      cpu: m.cpu || undefined,
-      battery: m.battery || undefined,
-      barcode: m.barcode || undefined,
+      memory: m.memory || undefined,
+      salePrice: m.salePrice || undefined,
+      isSubsidy: m.isSubsidy ?? false,
       description: m.description || undefined,
     })),
   }

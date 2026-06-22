@@ -136,6 +136,26 @@ router.get('/suppliers/export', async (req: Request, res: Response) => {
   }
 });
 
+// IMEI 重复性校验（入库时前端调用）
+router.get('/check-imei', async (req: Request, res: Response) => {
+  try {
+    const { imei } = req.query;
+    if (!imei) {
+      const r: ApiResponse = { code: 400, message: 'IMEI不能为空' };
+      return res.status(400).json(r);
+    }
+    const existing = await prisma.wh_inventory_imei.findUnique({
+      where: { imei: imei as string },
+      select: { id: true, status: true, store_id: true },
+    });
+    const r: ApiResponse = { code: 200, message: 'success', data: { exists: !!existing, record: existing || null } };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
 // ==================== 入库单管理 ====================
 
 function getStoreId(req: Request): number | null {
@@ -546,7 +566,7 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
               brand_name: model?.brand?.name || '',
               model_name: model?.name || '',
               color: model?.color || '',
-              storage: [model?.ram, model?.rom].filter(Boolean).join('/') || '',
+              storage: model?.memory || '',
               cost_price: model?.cost_price || 0,
               sale_price: model?.sale_price || 0,
             },
@@ -656,7 +676,7 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
               brand_name: model?.brand?.name || '',
               model_name: model?.name || '',
               color: model?.color || '',
-              storage: [model?.ram, model?.rom].filter(Boolean).join('/') || '',
+              storage: model?.memory || '',
               cost_price: model?.cost_price || 0,
               sale_price: model?.sale_price || 0,
             },

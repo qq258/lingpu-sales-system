@@ -264,7 +264,16 @@ function main() {
 
   // 3.4 Copy @prisma/client wrapper
   console.log('  Copying @prisma/client wrapper...');
-  const prismaWrapperSrc = path.join(ROOT, 'node_modules', '@prisma', 'client');
+  // pnpm monorepo 中 @prisma/client 不在根 node_modules，需要通过 server 下的 symlink 解析
+  let prismaWrapperSrc = '';
+  const serverPrismaClient = path.join(ROOT, 'server', 'node_modules', '@prisma', 'client');
+  if (fs.existsSync(serverPrismaClient)) {
+    try { prismaWrapperSrc = fs.realpathSync(serverPrismaClient); } catch (e) {}
+  }
+  if (!prismaWrapperSrc || !fs.existsSync(prismaWrapperSrc)) {
+    // 兜底: 从根 node_modules 查找
+    prismaWrapperSrc = path.join(ROOT, 'node_modules', '@prisma', 'client');
+  }
   const prismaWrapperDest = path.join(releaseServerNodeModules, '@prisma', 'client');
   if (fs.existsSync(prismaWrapperSrc)) {
     fs.mkdirSync(path.dirname(prismaWrapperDest), { recursive: true });
@@ -273,6 +282,8 @@ function main() {
     const mapFiles = findFiles(prismaWrapperDest, /\.map$/);
     for (const f of mapFiles) { try { fs.unlinkSync(f); } catch {} }
     if (mapFiles.length > 0) console.log(`  Cleaned ${mapFiles.length} source maps from @prisma/client.`);
+  } else {
+    console.warn('  WARNING: @prisma/client wrapper not found! Prisma may not work at runtime.');
   }
 
   // 3.5 Copy database

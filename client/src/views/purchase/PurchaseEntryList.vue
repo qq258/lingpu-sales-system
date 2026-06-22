@@ -87,7 +87,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="detailVisible" title="入库详情" width="700px" :close-on-click-modal="false" class="pbm-dialog">
+    <el-dialog v-model="detailVisible" title="入库详情" width="800px" :close-on-click-modal="false" class="pbm-dialog">
       <template v-if="detailData">
         <div class="pbm-detail-descriptions">
           <div class="pbm-detail-row">
@@ -129,6 +129,9 @@
               </span>
             </template>
           </el-table-column>
+          <el-table-column prop="costPrice" label="入库价格" width="100" align="right">
+            <template #default="{ row }">¥{{ row.costPrice?.toFixed(2) }}</template>
+          </el-table-column>
           <el-table-column label="IMEI" width="150" prop="imei" />
           <el-table-column label="IMEI2" width="130">
             <template #default="{ row }">
@@ -139,9 +142,6 @@
             <template #default="{ row }">
               {{ row.sn_code || '-' }}
             </template>
-          </el-table-column>
-          <el-table-column prop="costPrice" label="单价" width="90" align="right">
-            <template #default="{ row }">¥{{ row.costPrice?.toFixed(2) }}</template>
           </el-table-column>
         </el-table>
       </template>

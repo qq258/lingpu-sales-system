@@ -10,15 +10,8 @@ export const BRAND_MODEL_TEMPLATE_COLUMNS: ImportTemplateColumn[] = [
   { header: '品牌名', width: 16, example: 'Apple' },
   { header: '型号名', width: 22, example: 'iPhone 15 Pro Max' },
   { header: '颜色', width: 12, example: '深黑色' },
-  { header: '操作系统', width: 10, example: 'iOS' },
-  { header: '屏幕尺寸', width: 12, example: '6.7英寸' },
-  { header: '处理器', width: 16, example: 'A17 Pro' },
-  { header: '运行内存', width: 10, example: '8GB' },
-  { header: '存储容量', width: 10, example: '256GB' },
-  { header: '电池容量', width: 12, example: '4422mAh' },
-  { header: '网络制式', width: 10, example: '5G' },
-  { header: '上市年份', width: 10, example: '2023' },
-  { header: '条码', width: 18, example: '6901234567890' },
+  { header: '内存', width: 16, example: '8GB/256GB' },
+  { header: '是否国补', width: 12, example: '是' },
   { header: '描述', width: 24, example: '旗舰机型' },
 ]
 
@@ -26,15 +19,11 @@ const COLUMN_FIELD_MAP: Record<string, string> = {
   '品牌名': 'brandName',
   '型号名': 'name',
   '颜色': 'color',
-  '操作系统': 'osType',
-  '屏幕尺寸': 'screenSize',
-  '处理器': 'cpu',
-  '运行内存': 'ram',
-  '存储容量': 'rom',
-  '电池容量': 'battery',
-  '网络制式': 'networkType',
-  '上市年份': 'launchYear',
-  '条码': 'barcode',
+  '内存': 'memory',
+  '运行内存': 'memory',
+  '存储容量': 'memory',
+  '是否国补': 'subsidy',
+  '国补': 'subsidy',
   '描述': 'description',
 }
 
@@ -62,15 +51,8 @@ export interface ParsedRow {
   brandName: string
   name: string
   color?: string
-  osType?: string
-  screenSize?: string
-  cpu?: string
-  ram?: string
-  rom?: string
-  battery?: string
-  networkType?: string
-  launchYear?: number
-  barcode?: string
+  memory?: string
+  subsidy?: string
   description?: string
   _rowIndex: number
 }
@@ -89,12 +71,7 @@ export function parseBrandModelFile(file: File): Promise<ParsedRow[]> {
           for (const [zh, field] of Object.entries(COLUMN_FIELD_MAP)) {
             const v = row[zh]
             if (v === undefined || v === null || v === '') continue
-            if (field === 'launchYear') {
-              const num = Number(v)
-              if (!isNaN(num)) mapped[field] = num
-            } else {
-              mapped[field] = String(v).trim()
-            }
+            mapped[field] = String(v).trim()
           }
           return mapped as ParsedRow
         })

@@ -84,7 +84,7 @@
             <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
           </el-select>
           <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable size="small" style="width:250px;" :disabled="!searchBrandId">
-            <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.ram || ''}/${m.rom || ''}`" :value="m.id" />
+            <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.memory || ''}`" :value="m.id" />
           </el-select>
           <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!searchModelId" @click="addCheckModel">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -126,7 +126,7 @@
             <el-option v-for="b in brands" :key="b.id" :label="b.name" :value="b.id" />
           </el-select>
           <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable size="small" style="width:250px;" :disabled="!searchBrandId">
-            <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.ram || ''}/${m.rom || ''}`" :value="m.id" />
+            <el-option v-for="m in models" :key="m.id" :label="`${m.name} - ${m.color || ''}/${m.memory || ''}`" :value="m.id" />
           </el-select>
           <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!searchModelId" @click="addCheckModel">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -266,7 +266,7 @@ function addCheckModel() {
       brandName: model.brandName || '',
       modelName: model.name,
       color: model.color || '',
-      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+      storage: model.memory || '',
       systemQuantity: stock,
       actualQuantity: stock,
     })

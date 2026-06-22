@@ -20,8 +20,7 @@ export async function createBrand(name: string, description?: string) {
 
 export async function createModel(brandId: number, name: string, data?: {
   color?: string
-  ram?: string
-  rom?: string
+  memory?: string
   sale_price?: number
   cost_price?: number
 }) {

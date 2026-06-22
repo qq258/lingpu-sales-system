@@ -160,11 +160,9 @@ router.get('/export/:table', async (req: Request, res: Response) => {
           '品牌': r.brand?.name || '',
           '型号名称': r.name,
           '颜色': r.color || '',
-          'RAM': r.ram || '',
-          'ROM': r.rom || '',
+          '内存': r.memory || '',
           '售价': r.sale_price || 0,
           '成本价': r.cost_price || 0,
-          '条码': r.manufacturer_barcode || '',
           '状态': r.status === 1 ? '启用' : '禁用',
         }));
         break;

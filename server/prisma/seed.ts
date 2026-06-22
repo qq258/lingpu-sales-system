@@ -68,48 +68,43 @@ async function main() {
 
   // ========== 型号 ==========
   const modelDefs = [
-    { brand: 'Apple', name: 'iPhone 15 Pro Max', color: '黑色', ram: '8GB', rom: '256GB', sp: 9999, cp: 8500 },
-    { brand: 'Apple', name: 'iPhone 15 Pro Max', color: '白色', ram: '8GB', rom: '256GB', sp: 9999, cp: 8500 },
-    { brand: 'Apple', name: 'iPhone 15 Pro Max', color: '金色', ram: '8GB', rom: '512GB', sp: 11999, cp: 10200 },
-    { brand: 'Apple', name: 'iPhone 15', color: '黑色', ram: '6GB', rom: '128GB', sp: 5999, cp: 5100 },
-    { brand: 'Apple', name: 'iPhone 15', color: '蓝色', ram: '6GB', rom: '128GB', sp: 5999, cp: 5100 },
-    { brand: 'Apple', name: 'iPhone 15', color: '粉色', ram: '6GB', rom: '256GB', sp: 6999, cp: 5900 },
-    { brand: 'Samsung', name: 'Galaxy S24 Ultra', color: '灰色', ram: '12GB', rom: '256GB', sp: 9699, cp: 8200 },
-    { brand: 'Samsung', name: 'Galaxy S24 Ultra', color: '黑色', ram: '12GB', rom: '512GB', sp: 10999, cp: 9300 },
-    { brand: 'Samsung', name: 'Galaxy S24', color: '黄色', ram: '8GB', rom: '256GB', sp: 5999, cp: 5100 },
-    { brand: 'Samsung', name: 'Galaxy S24', color: '紫色', ram: '8GB', rom: '128GB', sp: 4999, cp: 4200 },
-    { brand: 'Xiaomi', name: '小米14 Ultra', color: '黑色', ram: '12GB', rom: '256GB', sp: 5999, cp: 5100 },
-    { brand: 'Xiaomi', name: '小米14 Ultra', color: '白色', ram: '16GB', rom: '512GB', sp: 6799, cp: 5700 },
-    { brand: 'Xiaomi', name: '红米K70 Pro', color: '黑色', ram: '12GB', rom: '256GB', sp: 3299, cp: 2800 },
-    { brand: 'Xiaomi', name: '红米K70 Pro', color: '白色', ram: '12GB', rom: '256GB', sp: 3299, cp: 2800 },
-    { brand: 'Huawei', name: 'Mate 60 Pro', color: '黑色', ram: '12GB', rom: '256GB', sp: 6999, cp: 5900 },
-    { brand: 'Huawei', name: 'Mate 60 Pro', color: '绿色', ram: '12GB', rom: '512GB', sp: 7999, cp: 6700 },
-    { brand: 'Huawei', name: 'Pura 70 Ultra', color: '白色', ram: '12GB', rom: '512GB', sp: 8999, cp: 7600 },
-    { brand: 'Huawei', name: 'Pura 70 Ultra', color: '黑色', ram: '12GB', rom: '256GB', sp: 7999, cp: 6800 },
-    { brand: 'OPPO', name: 'Find X7 Ultra', color: '黑色', ram: '12GB', rom: '256GB', sp: 5999, cp: 5000 },
-    { brand: 'OPPO', name: 'Find X7 Ultra', color: '蓝色', ram: '16GB', rom: '512GB', sp: 6999, cp: 5800 },
-    { brand: 'vivo', name: 'X100 Pro', color: '白色', ram: '12GB', rom: '256GB', sp: 4999, cp: 4200 },
-    { brand: 'vivo', name: 'X100 Pro', color: '黑色', ram: '12GB', rom: '512GB', sp: 5699, cp: 4800 },
+    { brand: 'Apple', name: 'iPhone 15 Pro Max', color: '黑色', memory: '8GB/256GB', sp: 9999, cp: 8500 },
+    { brand: 'Apple', name: 'iPhone 15 Pro Max', color: '白色', memory: '8GB/256GB', sp: 9999, cp: 8500 },
+    { brand: 'Apple', name: 'iPhone 15 Pro Max', color: '金色', memory: '8GB/512GB', sp: 11999, cp: 10200 },
+    { brand: 'Apple', name: 'iPhone 15', color: '黑色', memory: '6GB/128GB', sp: 5999, cp: 5100 },
+    { brand: 'Apple', name: 'iPhone 15', color: '蓝色', memory: '6GB/128GB', sp: 5999, cp: 5100 },
+    { brand: 'Apple', name: 'iPhone 15', color: '粉色', memory: '6GB/256GB', sp: 6999, cp: 5900 },
+    { brand: 'Samsung', name: 'Galaxy S24 Ultra', color: '灰色', memory: '12GB/256GB', sp: 9699, cp: 8200 },
+    { brand: 'Samsung', name: 'Galaxy S24 Ultra', color: '黑色', memory: '12GB/512GB', sp: 10999, cp: 9300 },
+    { brand: 'Samsung', name: 'Galaxy S24', color: '黄色', memory: '8GB/256GB', sp: 5999, cp: 5100 },
+    { brand: 'Samsung', name: 'Galaxy S24', color: '紫色', memory: '8GB/128GB', sp: 4999, cp: 4200 },
+    { brand: 'Xiaomi', name: '小米14 Ultra', color: '黑色', memory: '12GB/256GB', sp: 5999, cp: 5100 },
+    { brand: 'Xiaomi', name: '小米14 Ultra', color: '白色', memory: '16GB/512GB', sp: 6799, cp: 5700 },
+    { brand: 'Xiaomi', name: '红米K70 Pro', color: '黑色', memory: '12GB/256GB', sp: 3299, cp: 2800 },
+    { brand: 'Xiaomi', name: '红米K70 Pro', color: '白色', memory: '12GB/256GB', sp: 3299, cp: 2800 },
+    { brand: 'Huawei', name: 'Mate 60 Pro', color: '黑色', memory: '12GB/256GB', sp: 6999, cp: 5900 },
+    { brand: 'Huawei', name: 'Mate 60 Pro', color: '绿色', memory: '12GB/512GB', sp: 7999, cp: 6700 },
+    { brand: 'Huawei', name: 'Pura 70 Ultra', color: '白色', memory: '12GB/512GB', sp: 8999, cp: 7600 },
+    { brand: 'Huawei', name: 'Pura 70 Ultra', color: '黑色', memory: '12GB/256GB', sp: 7999, cp: 6800 },
+    { brand: 'OPPO', name: 'Find X7 Ultra', color: '黑色', memory: '12GB/256GB', sp: 5999, cp: 5000 },
+    { brand: 'OPPO', name: 'Find X7 Ultra', color: '蓝色', memory: '16GB/512GB', sp: 6999, cp: 5800 },
+    { brand: 'vivo', name: 'X100 Pro', color: '白色', memory: '12GB/256GB', sp: 4999, cp: 4200 },
+    { brand: 'vivo', name: 'X100 Pro', color: '黑色', memory: '12GB/512GB', sp: 5699, cp: 4800 },
   ];
 
   // ========== 型号 ==========
   const models: any[] = [];
   for (const m of modelDefs) {
     const model = await prisma.pdt_model.create({
-      data: {
-        brand_id: brands[m.brand].id,
-        name: m.name,
-        color: m.color,
-        ram: m.ram,
-        rom: m.rom,
-        sale_price: m.sp,
-        cost_price: m.cp,
-        launch_year: 2024,
-        os_type: m.brand === 'Apple' ? 'iOS' : 'Android',
-        network_type: '5G',
-        battery: '5000mAh',
-      },
-    });
+        data: {
+          brand_id: brands[m.brand].id,
+          name: m.name,
+          color: m.color,
+          memory: m.memory,
+          sale_price: m.sp,
+          cost_price: m.cp,
+        },
+      });
     models.push(model);
   }
   console.log(`✓ 型号创建完成 (${models.length} 个)`);
@@ -214,7 +209,7 @@ async function main() {
             data: { quantity: existingInv.quantity + batchSize },
           });
         } else {
-          const m = modelDefs.find(md => md.name === model.name && md.color === model.color && md.ram === model.ram && md.rom === model.rom)!;
+          const m = modelDefs.find(md => md.name === model.name && md.color === model.color && md.memory === model.memory)!;
           await prisma.wh_inventory.create({
             data: {
               model_id: model.id,
@@ -223,7 +218,7 @@ async function main() {
               brand_name: m?.brand || '',
               model_name: model.name,
               color: model.color || '',
-              storage: [model.ram, model.rom].filter(Boolean).join('/'),
+              storage: model.memory || '',
               cost_price: model.cost_price || 0,
               sale_price: model.sale_price || 0,
             },
@@ -290,7 +285,7 @@ async function main() {
       const orderNo = `SA${store.code}${dateStr.replace(/-/g, '')}${pad(saleIndex, 4)}`;
       const model = imeiGroup[0].model;
       const brandName = (model as any).brand?.name || '';
-      const modelNameStr = `${brandName} ${model.name} - ${model.color}/${model.ram}/${model.rom}`;
+      const modelNameStr = `${brandName} ${model.name} - ${model.color}/${model.memory}`;
       const unitPrice = model.sale_price;
       const qty = imeiGroup.length;
       const total = Math.round(unitPrice * qty);
@@ -389,6 +384,17 @@ async function main() {
   console.log(`  库存SKU:     ${totalInventory}`);
   console.log(`  销售单:      ${totalSales}`);
   console.log('════════════════════════════════');
+  // ========== 系统设置（保修须知） ==========
+  await prisma.sys_setting.upsert({
+    where: { key: 'warranty_notice' },
+    update: {},
+    create: {
+      key: 'warranty_notice',
+      value: '<p>感谢您选择本店购买手机产品！</p><p><strong>保修说明：</strong></p><ul><li>本店售出手机均享受 <strong>12 个月</strong> 免费保修服务（自购买之日起计算）</li><li>保修范围包括：非人为损坏的主板、屏幕、电池等硬件故障</li><li>以下情况不在保修范围内：<ul><li>人为损坏（摔损、进水、私自拆修等）</li><li>外观磨损（外壳、按键、屏幕划痕等）</li><li>配件（充电器、数据线、耳机等）</li></ul></li><li>维修时请携带本小票及购机凭证</li></ul><p>售后电话：请咨询购买门店</p>',
+    },
+  });
+  console.log('✓ 系统设置（保修须知）创建完成');
+
   console.log('种子数据填充完毕!');
 }
 

@@ -101,11 +101,17 @@
                 <span class="pbm-cell-name">{{ row.name }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="osType" label="系统" width="100" />
-            <el-table-column prop="screenSize" label="屏幕" width="90" />
-            <el-table-column prop="cpu" label="处理器" min-width="140" />
-            <el-table-column prop="ram" label="内存" width="80" />
-            <el-table-column prop="rom" label="存储" width="80" />
+            <el-table-column prop="memory" label="内存" width="120" />
+            <el-table-column prop="salePrice" label="售价" width="100" align="right">
+              <template #default="{ row }">
+                <span class="pbm-cell-price">¥{{ (row.salePrice || 0).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="国补" width="60" align="center">
+              <template #default="{ row }">
+                <span :class="['pbm-cell-subsidy', row.isSubsidy ? 'is-subsidy' : '']">{{ row.isSubsidy ? '是' : '否' }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="" width="80" fixed="right">
               <template #default="{ row }">
                 <div class="pbm-cell-actions">
@@ -161,7 +167,7 @@
       @save-and-new="handleUnifiedSaveAndNew"
     />
 
-    <BatchImportDialog v-model:visible="importDialogVisible" />
+    <BatchImportDialog v-model:visible="importDialogVisible" @success="onImportSuccess" />
   </div>
 </template>
 
@@ -197,6 +203,11 @@ const editDialogLoading = ref(false)
 // 导入弹窗状态
 const importDialogVisible = ref(false)
 
+function onImportSuccess() {
+  importDialogVisible.value = false
+  loadBrands()
+}
+
 function handleExportBrands() {
   exportWithQuery('/products/brands/export')
 }
@@ -230,15 +241,9 @@ const specList = computed(() => {
   return [
     { label: '品牌', value: brandName },
     { label: '型号名称', value: m.name },
-    { label: '上市年份', value: m.launchYear?.toString() },
-    { label: '操作系统', value: m.osType },
-    { label: '网络制式', value: m.networkType },
-    { label: '屏幕尺寸', value: m.screenSize },
-    { label: '处理器', value: m.cpu },
-    { label: '运行内存', value: m.ram },
-    { label: '存储容量', value: m.rom },
-    { label: '电池容量', value: m.battery },
+    { label: '内存', value: m.memory },
     { label: '颜色', value: m.color },
+    { label: '是否国补', value: m.isSubsidy ? '是' : '否' },
     { label: '描述', value: m.description },
   ]
 })
@@ -330,15 +335,9 @@ async function performSave(payload: { brand: { id?: number; name: string; descri
           brandId: brandId,
           name: m.name || '',
           color: m.color,
-          ram: m.ram,
-          rom: m.rom,
-          osType: m.osType,
-          launchYear: m.launchYear,
-          networkType: m.networkType,
-          screenSize: m.screenSize,
-          cpu: m.cpu,
-          battery: m.battery,
-          barcode: m.barcode,
+          memory: m.memory,
+          salePrice: m.salePrice,
+          isSubsidy: m.isSubsidy,
           description: m.description,
         }
         await updateModel(m.id, modelData)
@@ -347,15 +346,9 @@ async function performSave(payload: { brand: { id?: number; name: string; descri
           brandId: brandId,
           name: m.name || '',
           color: m.color,
-          ram: m.ram,
-          rom: m.rom,
-          osType: m.osType,
-          launchYear: m.launchYear,
-          networkType: m.networkType,
-          screenSize: m.screenSize,
-          cpu: m.cpu,
-          battery: m.battery,
-          barcode: m.barcode,
+          memory: m.memory,
+          salePrice: m.salePrice,
+          isSubsidy: m.isSubsidy,
           description: m.description,
         }
         await createModel(modelData)

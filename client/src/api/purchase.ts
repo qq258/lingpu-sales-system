@@ -83,8 +83,7 @@ export async function getPurchaseEntry(id: number): Promise<any> {
       brandName: i.model?.brand?.name,
       modelName: i.model?.name,
       color: i.model?.color,
-      storage: `${i.model?.ram || ''}${i.model?.ram && i.model?.rom ? '/' : ''}${i.model?.rom || ''}`,
-      barcode: i.model?.manufacturer_barcode,
+      storage: i.model?.memory || '',
       costPrice: i.unit_price,
     })),
   }

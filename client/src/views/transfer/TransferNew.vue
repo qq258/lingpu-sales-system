@@ -37,7 +37,7 @@
             <el-option v-for="brand in brands" :key="brand.id" :label="brand.name" :value="brand.id" />
           </el-select>
           <el-select v-model="searchModelId" placeholder="选择型号" clearable filterable style="width: 250px;" :disabled="!searchBrandId">
-            <el-option v-for="model in models" :key="model.id" :label="`${model.name} - ${model.color || ''}/${model.ram || ''}/${model.rom || ''}`" :value="model.id" />
+            <el-option v-for="model in models" :key="model.id" :label="`${model.name} - ${model.color || ''}/${model.memory || ''}`" :value="model.id" />
           </el-select>
           <button class="pbm-btn-accent pbm-btn-accent--sm" :disabled="!searchModelId" @click="addSelectedModel">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -171,7 +171,7 @@ async function addSelectedModel() {
       brandName: model.brandName || '',
       modelName: model.name,
       color: model.color || '',
-      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+      storage: model.memory || '',
       stock,
       quantity: 1,
     })

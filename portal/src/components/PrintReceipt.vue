@@ -29,20 +29,10 @@
             <span class="item-name">{{ item.model_name }}</span>
             <span class="item-price">¥{{ (item.unit_price || 0).toFixed(2) }}</span>
           </div>
-          <div class="item-barcode-block">
-            <div class="item-code-label">IMEI1</div>
-            <div class="item-code-value">{{ item.imei || '' }}</div>
-            <svg v-if="item.imei" :ref="el => { if (el) renderBarcode(el as SVGSVGElement, item.imei) }" class="barcode-svg"></svg>
-          </div>
-          <div v-if="item.imei2" class="item-barcode-block">
-            <div class="item-code-label">IMEI2</div>
-            <div class="item-code-value">{{ item.imei2 }}</div>
-            <svg :ref="el => { if (el) renderBarcode(el as SVGSVGElement, item.imei2) }" class="barcode-svg"></svg>
-          </div>
-          <div v-if="item.sn_code" class="item-barcode-block">
-            <div class="item-code-label">S/N</div>
-            <div class="item-code-value">{{ item.sn_code }}</div>
-            <svg :ref="el => { if (el) renderBarcode(el as SVGSVGElement, item.sn_code) }" class="barcode-svg"></svg>
+          <div class="item-codes">
+            <div class="item-code-row"><span class="code-label">IMEI1</span><span class="code-value">{{ item.imei || '' }}</span></div>
+            <div v-if="item.imei2" class="item-code-row"><span class="code-label">IMEI2</span><span class="code-value">{{ item.imei2 }}</span></div>
+            <div v-if="item.sn_code" class="item-code-row"><span class="code-label">S/N</span><span class="code-value">{{ item.sn_code }}</span></div>
           </div>
         </div>
       </div>
@@ -52,10 +42,16 @@
         <div class="total-row"><span>合计</span><span>¥{{ (data?.total_amount || 0).toFixed(2) }}</span></div>
         <div class="total-row"><span>实收</span><span>¥{{ (data?.actual_amount || 0).toFixed(2) }}</span></div>
         <div v-if="data?.change_amount" class="total-row"><span>找零</span><span>¥{{ (data.change_amount).toFixed(2) }}</span></div>
+        <div v-if="data?.actual_amount != null && data?.total_amount != null && data.actual_amount < data.total_amount" class="total-row discount-row">
+          <span></span><span class="discount-text">优惠 ¥{{ (data.total_amount - data.actual_amount).toFixed(2) }}</span>
+        </div>
       </div>
 
       <div v-if="data?.remark" class="receipt-divider"></div>
       <div v-if="data?.remark" class="receipt-remark">备注：{{ data.remark }}</div>
+
+      <div v-if="warrantyContent" class="receipt-divider"></div>
+      <div v-if="warrantyContent" class="receipt-warranty" v-html="warrantyContent"></div>
 
       <div class="receipt-divider"></div>
       <div class="receipt-footer">
@@ -73,7 +69,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import JsBarcode from 'jsbarcode'
+import request from '@/api/request'
 
 const props = defineProps<{
   data: any
@@ -82,74 +78,41 @@ const props = defineProps<{
 
 const visible = ref(false)
 const receiptRef = ref<HTMLDivElement>()
+const warrantyContent = ref('')
 
 function formatTime(t: string) {
   if (!t) return ''
   return t.slice(0, 16).replace('T', ' ')
 }
 
+async function loadWarrantyNotice() {
+  try {
+    const res: any = await request.get('/settings/warranty_notice')
+    warrantyContent.value = res?.data?.value || ''
+  } catch {
+    warrantyContent.value = ''
+  }
+}
+
 function open() {
   visible.value = true
-}
-
-function renderBarcode(svg: SVGSVGElement, value: string) {
-  if (!value) return
-  nextTick(() => {
-    while (svg.firstChild) svg.removeChild(svg.firstChild)
-    try {
-      JsBarcode(svg, value, {
-        format: 'CODE128',
-        width: 2,
-        height: 30,
-        displayValue: false,
-        margin: 0,
-      })
-    } catch {
-      // barcode render failed, skip
-    }
-  })
-}
-
-function generateBarcodeSvg(imei: string): string {
-  if (!imei) return ''
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  try {
-    JsBarcode(svg, imei, {
-      format: 'CODE128',
-      width: 2,
-      height: 30,
-      displayValue: false,
-      margin: 0,
-    })
-    return svg.outerHTML
-  } catch { return '' }
-}
-
-function barcodeBlock(label: string, value: string) {
-  const svg = generateBarcodeSvg(value)
-  return `
-    <div class="item-barcode-block">
-      <div class="item-code-label">${label}</div>
-      <div class="item-code-value">${value}</div>
-      ${svg || ''}
-    </div>
-  `
+  nextTick(() => loadWarrantyNotice())
 }
 
 function handlePrint() {
   if (!props.data) return
 
   const itemsHtml = (props.data.items || []).map((item: any) => {
-    let blocks = barcodeBlock('IMEI1', item.imei || '')
-    if (item.imei2) blocks += barcodeBlock('IMEI2', item.imei2)
-    if (item.sn_code) blocks += barcodeBlock('S/N', item.sn_code)
+    let codesHtml = `<div class="item-code-row"><span class="code-label">IMEI1</span><span class="code-value">${item.imei || ''}</span></div>`
+    if (item.imei2) codesHtml += `<div class="item-code-row"><span class="code-label">IMEI2</span><span class="code-value">${item.imei2}</span></div>`
+    if (item.sn_code) codesHtml += `<div class="item-code-row"><span class="code-label">S/N</span><span class="code-value">${item.sn_code}</span></div>`
     return `
       <div class="receipt-item">
         <div class="item-header">
           <span class="item-name">${item.model_name || ''}</span>
           <span class="item-price">¥${(item.unit_price || 0).toFixed(2)}</span>
         </div>
-        ${blocks}
+        <div class="item-codes">${codesHtml}</div>
       </div>
     `
   }).join('')
@@ -168,8 +131,16 @@ function handlePrint() {
     ? `<div class="total-row"><span>找零</span><span>¥${(props.data.change_amount).toFixed(2)}</span></div>`
     : ''
 
+  const discountHtml = (props.data.actual_amount != null && props.data.total_amount != null && props.data.actual_amount < props.data.total_amount)
+    ? `<div class="total-row discount-row"><span></span><span class="discount-text">优惠 ¥${(props.data.total_amount - props.data.actual_amount).toFixed(2)}</span></div>`
+    : ''
+
   const remarkHtml = props.data.remark
     ? `<div class="receipt-divider"></div><div class="receipt-remark">备注：${props.data.remark}</div>`
+    : ''
+
+  const warrantyHtml = warrantyContent.value
+    ? `<div class="receipt-divider"></div><div class="receipt-warranty">${warrantyContent.value}</div>`
     : ''
 
   const printWindow = window.open('', '_blank', 'width=380,height=600')
@@ -193,13 +164,19 @@ function handlePrint() {
       .item-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
       .item-name { font-size: 11px; font-weight: bold; }
       .item-price { font-size: 11px; font-weight: bold; }
-      .item-barcode-block { text-align: center; margin: 8px 0; padding: 6px 0; border-top: 1px dotted #ddd; }
-      .item-barcode-block:first-of-type { border-top: none; }
-      .item-code-label { text-align: center; font-size: 10px; font-weight: bold; color: #666; margin-bottom: 2px; letter-spacing: 0.5px; }
-      .item-code-value { text-align: center; font-size: 11px; font-weight: bold; color: #333; margin-bottom: 4px; letter-spacing: 1px; }
-      .item-barcode-block svg { width: 100%; max-width: 100%; height: auto; }
+      .item-codes { margin: 2px 0; }
+      .item-code-row { display: flex; justify-content: space-between; margin: 1px 0; font-size: 10px; }
+      .code-label { color: #666; font-weight: bold; }
+      .code-value { color: #333; font-family: monospace; letter-spacing: 0.5px; }
       .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; font-size: 12px; }
       .receipt-remark { font-size: 11px; color: #555; }
+      .discount-row { color: #e67e22; }
+      .discount-text { font-size: 11px; font-weight: 600; }
+      .receipt-warranty { font-size: 10px; line-height: 1.5; color: #555; }
+      .receipt-warranty p { margin: 2px 0; }
+      .receipt-warranty ul, .receipt-warranty ol { margin: 2px 0; padding-left: 16px; }
+      .receipt-warranty li { margin: 1px 0; }
+      .receipt-warranty strong { font-weight: bold; }
       .receipt-footer { text-align: center; font-size: 11px; color: #888; margin-top: 4px; }
       .receipt-footer p { margin: 2px 0; }
       @media print { body { padding: 0; } }
@@ -225,19 +202,17 @@ function handlePrint() {
           <div class="total-row"><span>合计</span><span>¥${(props.data.total_amount || 0).toFixed(2)}</span></div>
           <div class="total-row"><span>实收</span><span>¥${(props.data.actual_amount || 0).toFixed(2)}</span></div>
           ${changeHtml}
+          ${discountHtml}
         </div>
         ${remarkHtml}
+        ${warrantyHtml}
         <div class="receipt-divider"></div>
         <div class="receipt-footer">
           <p>感谢您的光临！</p>
           <p>售后电话：${props.data?.store?.phone || '—'}</p>
         </div>
       </div>
-      <script>
-        window.onload = function() {
-          setTimeout(function() { window.print(); window.close(); }, 300)
-        }
-      <\/script>
+      <script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 300) }<\/script>
     </body></html>
   `)
   printWindow.document.close()
@@ -263,14 +238,19 @@ defineExpose({ open })
 .item-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
 .item-name { font-size: 11px; font-weight: bold; }
 .item-price { font-size: 11px; font-weight: bold; color: #f56c6c; }
-.item-barcode-block { text-align: center; margin: 8px 0; padding: 6px 0; border-top: 1px dotted #dcdfe6; }
-.item-barcode-block:first-of-type { border-top: none; }
-.item-code-label { text-align: center; font-size: 10px; font-weight: bold; color: #666; margin-bottom: 2px; letter-spacing: 0.5px; }
-.item-code-value { text-align: center; font-size: 11px; font-weight: bold; color: #333; margin-bottom: 4px; letter-spacing: 1px; }
-:deep(.item-barcode-block svg), .item-barcode-block svg { width: 100%; max-width: 100%; height: auto; }
+.item-codes { margin: 2px 0; }
+.item-code-row { display: flex; justify-content: space-between; margin: 1px 0; font-size: 10px; }
+.code-label { color: #666; font-weight: bold; }
+.code-value { color: #333; font-family: monospace; letter-spacing: 0.5px; }
 .receipt-total .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; font-size: 12px; }
 .receipt-remark { font-size: 11px; color: #666; }
+.discount-row { color: #e67e22; }
+.discount-text { font-size: 11px; font-weight: 600; }
+.receipt-warranty { font-size: 10px; line-height: 1.6; color: #555; }
+.receipt-warranty :deep(p) { margin: 4px 0; }
+.receipt-warranty :deep(ul), .receipt-warranty :deep(ol) { margin: 4px 0; padding-left: 16px; }
+.receipt-warranty :deep(li) { margin: 2px 0; }
+.receipt-warranty :deep(strong) { font-weight: bold; }
 .receipt-footer { text-align: center; font-size: 11px; color: #888; margin-top: 4px; }
 .receipt-footer p { margin: 2px 0; }
-.barcode-svg { width: 100%; display: block; }
 </style>

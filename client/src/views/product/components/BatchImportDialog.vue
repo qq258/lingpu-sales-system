@@ -60,10 +60,9 @@
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="brandName" label="品牌" min-width="100" />
         <el-table-column prop="name" label="型号" min-width="140" />
-        <el-table-column prop="ram" label="内存" width="70" />
-        <el-table-column prop="rom" label="存储" width="70" />
+        <el-table-column prop="memory" label="内存" width="110" />
         <el-table-column prop="color" label="颜色" width="80" />
-        <el-table-column prop="osType" label="系统" width="70" />
+        <el-table-column prop="subsidy" label="国补" width="60" />
       </el-table>
     </div>
 
@@ -109,7 +108,7 @@ import { importBrandModels } from '@/api/product'
 
 interface Props { visible: boolean }
 const props = defineProps<Props>()
-const emit = defineEmits<{ 'update:visible': [val: boolean] }>()
+const emit = defineEmits<{ 'update:visible': [val: boolean]; 'success': [] }>()
 
 const file = ref<File | null>(null)
 const fileInputRef = ref<HTMLInputElement>()
@@ -176,6 +175,7 @@ async function handleImport() {
     const res = await importBrandModels(file.value, conflictMode.value)
     result.value = res
     ElMessage.success(`导入完成：新建 ${res.success} / 跳过 ${res.skipped} / 覆盖 ${res.overwritten || 0} / 失败 ${res.errors?.length || 0}`)
+    emit('success')
   } catch (err: any) {
     ElMessage.error('导入失败：' + (err?.message || '未知错误'))
   } finally {

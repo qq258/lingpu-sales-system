@@ -25,7 +25,7 @@ async function getModelInfo(modelId: number) {
     brand_name: model.brand?.name || '',
     model_name: model.name,
     color: model.color || '',
-    storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+    storage: model.memory || '',
     cost_price: model.cost_price || 0,
     sale_price: model.sale_price || 0,
   };
@@ -222,7 +222,7 @@ router.get('/scan-imei', async (req: Request, res: Response) => {
         brandName: record.model?.brand?.name || '',
         modelName: record.model?.name || '',
         color: record.model?.color || '',
-        storage: [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '',
+        storage: record.model?.memory || '',
         salePrice: record.model?.sale_price || 0,
         storeName: record.store?.name || '',
       },
@@ -320,7 +320,7 @@ router.get('/imei-query', async (req: Request, res: Response) => {
         brandName: record.model?.brand?.name || '',
         modelName: record.model?.name || '',
         color: record.model?.color || '',
-        storage: [record.model?.ram, record.model?.rom].filter(Boolean).join('/') || '',
+        storage: record.model?.memory || '',
         salePrice: record.model?.sale_price || 0,
         storeName: record.store?.name || '',
         status: record.status,
@@ -356,7 +356,7 @@ router.get('/imei-list', async (req: Request, res: Response) => {
         { imei2: { contains: keyword as string } },
         { sn_code: { contains: keyword as string } },
         { model: { name: { contains: keyword as string } } },
-        { model: { manufacturer_barcode: { contains: keyword as string } } },
+        { model: { name: { contains: keyword as string } } },
       ];
       if (Object.keys(modelFilter).length > 0) {
         imeiWhere.AND = [{ model: modelFilter }, { OR: keywordFilter }];
@@ -395,7 +395,7 @@ router.get('/imei-list', async (req: Request, res: Response) => {
       brandName: item.model?.brand?.name || '',
       modelName: item.model?.name || '',
       color: item.model?.color || '',
-      storage: [item.model?.ram, item.model?.rom].filter(Boolean).join('/') || '',
+      storage: item.model?.memory || '',
       storeName: item.store?.name || '',
       createdAt: item.created_at,
     }));
@@ -454,7 +454,6 @@ router.get('/', async (req: Request, res: Response) => {
     const modelWhere: any = {};
     if (keyword) {
       modelWhere.OR = [
-        { manufacturer_barcode: { contains: keyword as string } },
         { name: { contains: keyword as string } },
         { color: { contains: keyword as string } },
       ];
@@ -495,10 +494,10 @@ router.get('/', async (req: Request, res: Response) => {
       brandName: item.brand_name || item.model?.brand?.name || '',
       modelName: item.model_name || item.model?.name || '',
       color: item.color || item.model?.color || '',
-      storage: item.storage || [item.model?.ram, item.model?.rom].filter(Boolean).join('/') || '',
+      storage: item.storage || item.model?.memory || '',
       costPrice: item.cost_price || item.model?.cost_price || 0,
       price: item.sale_price || item.model?.sale_price || 0,
-      barcode: item.model?.manufacturer_barcode || '',
+      barcode: '',
       storeName: item.store?.name || '',
     }));
 
@@ -533,7 +532,7 @@ router.get('/logs', async (req: Request, res: Response) => {
         take,
         orderBy: { created_at: 'desc' },
         include: {
-          model: { select: { id: true, name: true, color: true, ram: true, rom: true } },
+          model: { select: { id: true, name: true, color: true, memory: true } },
           operator: { select: { id: true, real_name: true } },
           store: { select: { id: true, name: true } },
         },
@@ -548,7 +547,7 @@ router.get('/logs', async (req: Request, res: Response) => {
       brandName: '',
       modelName: item.model?.name || '',
       color: item.model?.color || '',
-      storage: [item.model?.ram, item.model?.rom].filter(Boolean).join('/') || '',
+      storage: item.model?.memory || '',
       barcode: '',
       storeName: item.store?.name || '',
       changeType: item.change_type,
@@ -632,7 +631,7 @@ router.get('/by-model', async (req: Request, res: Response) => {
       brandName: model.brand?.name || '',
       modelName: model.name,
       color: model.color || '',
-      storage: [model.ram, model.rom].filter(Boolean).join('/') || '',
+      storage: model.memory || '',
       salePrice: model.sale_price || 0,
       costPrice: model.cost_price || 0,
       stock,

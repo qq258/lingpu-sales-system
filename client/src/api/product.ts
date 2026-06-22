@@ -4,7 +4,7 @@ export interface BrandData {
   id?: number
   name: string
   description?: string
-  models?: Array<{ id: number; name: string; color?: string; ram?: string; rom?: string; sale_price?: number; cost_price?: number }>
+  models?: Array<{ id: number; name: string; color?: string; memory?: string; sale_price?: number; cost_price?: number }>
   _count?: { models: number }
 }
 
@@ -14,17 +14,10 @@ export interface ModelData {
   brandName?: string
   name: string
   color?: string
-  ram?: string
-  rom?: string
+  memory?: string
   salePrice?: number
   costPrice?: number
-  barcode?: string
-  osType?: string
-  launchYear?: number
-  networkType?: string
-  screenSize?: string
-  cpu?: string
-  battery?: string
+  isSubsidy?: boolean
   description?: string
 }
 
@@ -56,17 +49,10 @@ export async function getModels(brandId?: number): Promise<ModelData[]> {
     brandName: item.brand?.name,
     name: item.name,
     color: item.color,
-    ram: item.ram,
-    rom: item.rom,
+    memory: item.memory,
     salePrice: item.sale_price,
     costPrice: item.cost_price,
-    barcode: item.manufacturer_barcode,
-    osType: item.os_type,
-    launchYear: item.launch_year,
-    networkType: item.network_type,
-    screenSize: item.screen_size,
-    cpu: item.cpu,
-    battery: item.battery,
+    isSubsidy: item.is_subsidy ?? false,
     description: item.description,
   }))
 }
@@ -76,17 +62,10 @@ export async function createModel(data: ModelData): Promise<ModelData> {
     brand_id: data.brandId,
     name: data.name,
     color: data.color,
-    ram: data.ram,
-    rom: data.rom,
+    memory: data.memory,
     sale_price: data.salePrice,
     cost_price: data.costPrice,
-    manufacturer_barcode: data.barcode,
-    os_type: data.osType,
-    launch_year: data.launchYear,
-    network_type: data.networkType,
-    screen_size: data.screenSize,
-    cpu: data.cpu,
-    battery: data.battery,
+    is_subsidy: data.isSubsidy ?? false,
     description: data.description,
   })
   return res.data
@@ -97,17 +76,10 @@ export async function updateModel(id: number, data: ModelData): Promise<ModelDat
     brand_id: data.brandId,
     name: data.name,
     color: data.color,
-    ram: data.ram,
-    rom: data.rom,
+    memory: data.memory,
     sale_price: data.salePrice,
     cost_price: data.costPrice,
-    manufacturer_barcode: data.barcode,
-    os_type: data.osType,
-    launch_year: data.launchYear,
-    network_type: data.networkType,
-    screen_size: data.screenSize,
-    cpu: data.cpu,
-    battery: data.battery,
+    is_subsidy: data.isSubsidy ?? false,
     description: data.description,
   })
   return res.data
@@ -126,12 +98,9 @@ export async function searchModels(keyword: string): Promise<ModelData[]> {
     name: item.modelName,
     modelName: item.modelName,
     color: item.color,
-    ram: item.ram,
-    rom: item.rom,
-    storage: item.storage,
+    memory: item.memory,
     salePrice: item.salePrice,
     costPrice: item.costPrice,
-    barcode: item.barcode,
   }))
 }
 
