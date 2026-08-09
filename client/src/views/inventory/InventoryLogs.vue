@@ -42,7 +42,6 @@
                 {{ row.modelName }} - {{ row.color }} / {{ row.storage }}
               </template>
             </el-table-column>
-            <el-table-column prop="barcode" label="条码" width="140" />
             <el-table-column prop="storeName" label="门店" width="120" />
             <el-table-column prop="changeType" label="变动类型" width="120">
               <template #default="{ row }">

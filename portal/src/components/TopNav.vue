@@ -40,11 +40,14 @@ const userStore = useUserStore()
 const navItems = [
   { path: '/dashboard', label: '看板', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>' },
   { path: '/entry', label: '入库', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' },
-  { path: '/inventory', label: '查库存', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' },
+  { path: '/inventory', label: '库存', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 7l-10-5L2 7v10l10 5 10-5V7z"/><polyline points="2 7 12 12 22 7"/><polyline points="12 12 12 22"/></svg>' },
+  { path: '/brands', label: '品牌', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
   { path: '/sale', label: '开单', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>' },
   { path: '/sales-record', label: '记录', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>' },
   { path: '/after-sales', label: '售后', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' },
   { path: '/manual', label: '手册', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
+  { path: '/tools', label: '数据', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>' },
+  { path: '/settings/warranty', label: '设置', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' },
 ]
 
 const displayName = computed(() => userStore.userInfo?.realName || userStore.userInfo?.username || '用户')
@@ -62,8 +65,9 @@ function handleLogout() {
 .nav-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .nav-logo-icon { color: #60A5FA; }
 .nav-logo { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
-.nav-center { flex: 1; display: flex; justify-content: center; gap: 2px; margin: 0 24px; }
-.nav-link { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 10px; font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.55); text-decoration: none; transition: var(--transition); }
+.nav-center { flex: 1; display: flex; justify-content: flex-start; gap: 2px; margin: 0 24px; overflow-x: auto; scrollbar-width: none; }
+.nav-center::-webkit-scrollbar { display: none; }
+.nav-link { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 10px; font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.55); text-decoration: none; transition: var(--transition); flex-shrink: 0; }
 .nav-link:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .nav-link--active { color: #fff !important; background: rgba(37,99,235,0.3); }
 .nav-link-icon { display: flex; }
@@ -72,4 +76,19 @@ function handleLogout() {
 .nav-user:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .nav-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .nav-username { font-size: 14px; }
+
+/* 移动端适配：压缩内边距与字号，导航中部保持横向滚动 */
+@media (max-width: 768px) {
+  .nav-inner { padding: 0 10px; }
+  .nav-logo { font-size: 15px; }
+  .nav-logo-icon { width: 20px; height: 20px; }
+  .nav-link { padding: 8px 12px; font-size: 13px; }
+  .nav-center { margin: 0 8px; }
+  .nav-avatar { width: 28px; height: 28px; }
+  .nav-username { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+@media (max-width: 480px) {
+  .nav-logo { display: none; }
+  .nav-right { margin-left: auto; }
+}
 </style>

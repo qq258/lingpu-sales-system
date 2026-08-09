@@ -36,7 +36,7 @@ importers:
         version: 4.6.4(vue@3.5.38(typescript@5.9.3))
       vue3-barcode:
         specifier: ^1.0.1
-        version: 1.0.1(@vue/compiler-sfc@3.5.38)(typescript@5.9.3)
+        version: 1.0.2(@vue/compiler-sfc@3.5.38)(typescript@5.9.3)
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
@@ -62,6 +62,9 @@ importers:
       '@element-plus/icons-vue':
         specifier: ^2.3.0
         version: 2.3.2(vue@3.5.38(typescript@5.9.3))
+      '@vueup/vue-quill':
+        specifier: ^1.5.3
+        version: 1.5.3(vue@3.5.38(typescript@5.9.3))
       axios:
         specifier: ^1.6.0
         version: 1.17.0
@@ -80,6 +83,9 @@ importers:
       vue-router:
         specifier: ^4.3.0
         version: 4.6.4(vue@3.5.38(typescript@5.9.3))
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^5.0.0
@@ -1473,8 +1479,8 @@ packages:
     peerDependencies:
       typescript: '>=5.0.0'
 
-  vue3-barcode@1.0.1:
-    resolution: {integrity: sha512-i9XU0iyLSLSQsWSbsmGoqiKr3kwflmyqbdmk1euITTna/f4aEbbibRRSv4rTLzriaSTGlXp3+iWxyEhimzNPBQ==}
+  vue3-barcode@1.0.2:
+    resolution: {integrity: sha512-4+aNtX1m99KlnAYxDGQ0RJkI2PcG4UhXq2u8sHcWPkqc3GjFy5ZxoPd9nnFjJT08ERu1EsuetzfqaeyfJJ7Hqg==}
 
   vue@3.5.38:
     resolution: {integrity: sha512-vAMKHfImQlYSy0C+PBue4s3ERZ2xGKfgZg5GXAsLInq1dyh2H78ILVP5sK0KPFPVW4kv+OGCIvBEondcjpZp7A==}
@@ -2711,7 +2717,7 @@ snapshots:
       '@vue/language-core': 2.2.12(typescript@5.9.3)
       typescript: 5.9.3
 
-  vue3-barcode@1.0.1(@vue/compiler-sfc@3.5.38)(typescript@5.9.3):
+  vue3-barcode@1.0.2(@vue/compiler-sfc@3.5.38)(typescript@5.9.3):
     dependencies:
       '@vitejs/plugin-vue': 1.6.0(@vue/compiler-sfc@3.5.38)
       jsbarcode: 3.12.3

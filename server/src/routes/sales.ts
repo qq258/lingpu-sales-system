@@ -15,6 +15,19 @@ function getStoreId(req: Request): number | null {
   return (req as any).effectiveStoreId ?? null;
 }
 
+// 业务错误：返回明确的 HTTP 状态码与中文提示，供前端直接展示
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function isApiError(err: any): err is ApiError {
+  return err instanceof ApiError;
+}
+
 router.post('/sales/no-stock', async (req: Request, res: Response) => {
   try {
     const storeId = getStoreId(req);
@@ -66,25 +79,43 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
         let modelId = item.model_id;
 
         if (!modelId) {
+          const brandName = (item.brand_name || '').trim();
+          const modelName = (item.model_name || '').trim();
+          if (!brandName) {
+            throw new ApiError('品牌名称不能为空，请完整填写品牌型号');
+          }
+          if (!modelName) {
+            throw new ApiError('型号名称不能为空，请完整填写品牌型号');
+          }
+
           // 查找或创建品牌
           let brand = await tx.pdt_brand.findFirst({
-            where: { name: item.brand_name },
+            where: { name: brandName },
           });
           if (!brand) {
             brand = await tx.pdt_brand.create({
-              data: { name: item.brand_name },
+              data: { name: brandName },
             });
           }
 
-          // 查找或创建型号
+          // 查找型号：品牌+型号名已存在时给出明确提示（规格不同时展示既有规格）
           let model = await tx.pdt_model.findFirst({
-            where: { brand_id: brand.id, name: item.model_name },
+            where: { brand_id: brand.id, name: modelName },
           });
-          if (!model) {
+          if (model) {
+            const specDiffers =
+              (item.color || '') && item.color !== (model.color || '') ||
+              (item.storage || '') && item.storage !== (model.memory || '');
+            if (specDiffers) {
+              throw new ApiError(
+                `型号已存在：${brandName} ${modelName}（${model.color || '无'}/${model.memory || '无'}，售价¥${model.sale_price || 0}）。如需不同规格请修改型号名称，或在「品牌型号」中维护`
+              );
+            }
+          } else {
             model = await tx.pdt_model.create({
               data: {
                 brand_id: brand.id,
-                name: item.model_name,
+                name: modelName,
                 color: item.color || '',
                 memory: item.storage || '',
                 sale_price: item.unit_price,
@@ -94,18 +125,25 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
           modelId = model.id;
         }
 
-        // 创建 IMEI 记录（已售状态）
-        await tx.wh_inventory_imei.create({
-          data: {
-            model_id: modelId,
-            store_id: storeId,
-            imei: item.imei,
-            imei2: item.imei2 || null,
-            sn_code: item.sn_code || null,
-            status: 'sold',
-            sold_at: new Date(),
-          },
-        });
+        // 创建 IMEI 记录（已售状态），唯一约束冲突时给出明确提示
+        try {
+          await tx.wh_inventory_imei.create({
+            data: {
+              model_id: modelId,
+              store_id: storeId,
+              imei: item.imei,
+              imei2: item.imei2 || null,
+              sn_code: item.sn_code || null,
+              status: 'sold',
+              sold_at: new Date(),
+            },
+          });
+        } catch (err: any) {
+          if (err?.code === 'P2002') {
+            throw new ApiError(`IMEI ${item.imei} 已登记（该手机已存在于系统中），无法重复开单`);
+          }
+          throw err;
+        }
 
         // 获取型号完整信息
         const modelRec = await tx.pdt_model.findUnique({
@@ -236,8 +274,9 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
     const r: ApiResponse = { code: 200, message: '开单成功', data: result };
     return res.json(r);
   } catch (err: any) {
-    const r: ApiResponse = { code: 500, message: err.message || '开单失败' };
-    return res.status(500).json(r);
+    const status = isApiError(err) ? err.status : 500;
+    const r: ApiResponse = { code: status, message: err.message || '开单失败' };
+    return res.status(status).json(r);
   }
 });
 

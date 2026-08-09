@@ -16,7 +16,9 @@
     "prisma:push": "pnpm --filter @phone-sales/server prisma:push",
     "seed": "pnpm --filter @phone-sales/server seed",
     "package": "node scripts/package.js",
-    "package:build": "node scripts/package.js --build"
+    "package:build": "node scripts/package.js --build",
+    "package:update": "node scripts/package.js --update",
+    "package:update:build": "node scripts/package.js --update --build"
   },
   "engines": {
     "node": ">=18.0.0",

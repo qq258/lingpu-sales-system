@@ -497,7 +497,6 @@ router.get('/', async (req: Request, res: Response) => {
       storage: item.storage || item.model?.memory || '',
       costPrice: item.cost_price || item.model?.cost_price || 0,
       price: item.sale_price || item.model?.sale_price || 0,
-      barcode: '',
       storeName: item.store?.name || '',
     }));
 
@@ -548,7 +547,6 @@ router.get('/logs', async (req: Request, res: Response) => {
       modelName: item.model?.name || '',
       color: item.model?.color || '',
       storage: item.model?.memory || '',
-      barcode: '',
       storeName: item.store?.name || '',
       changeType: item.change_type,
       changeQuantity: item.qty_change,
@@ -638,6 +636,230 @@ router.get('/by-model', async (req: Request, res: Response) => {
     }];
 
     const r: ApiResponse = { code: 200, message: 'success', data: result };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// ==================== 品牌型号库存树（合并页） ====================
+
+// 品牌 → 型号 两级树，型号节点带当前门店（或全部）总库存数量
+router.get('/tree', async (req: Request, res: Response) => {
+  try {
+    const storeId = getStoreId(req);
+    const brands = await prisma.pdt_brand.findMany({
+      where: { status: 1 },
+      orderBy: { id: 'asc' },
+      include: {
+        models: {
+          where: { status: 1 },
+          orderBy: { id: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            memory: true,
+            sale_price: true,
+            cost_price: true,
+            is_subsidy: true,
+          },
+        },
+      },
+    });
+
+    const invWhere: any = {};
+    if (storeId) invWhere.store_id = storeId;
+    const invList = await prisma.wh_inventory.findMany({
+      where: invWhere,
+      select: { model_id: true, quantity: true },
+    });
+    const stockMap = new Map<number, number>(invList.map((i) => [i.model_id, i.quantity]));
+
+    const data = brands.map((b) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description || '',
+      models: b.models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        color: m.color || '',
+        memory: m.memory || '',
+        salePrice: m.sale_price || 0,
+        costPrice: m.cost_price || 0,
+        isSubsidy: m.is_subsidy,
+        stock: stockMap.get(m.id) || 0,
+      })),
+    }));
+
+    const r: ApiResponse = { code: 200, message: 'success', data };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// ==================== 删除库存（需填写删除原因） ====================
+
+// 删除单条 IMEI 库存（软删除，保留追溯）
+router.delete('/imei/:id', async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { delete_reason } = req.body || {};
+    const reason = typeof delete_reason === 'string' ? delete_reason.trim() : '';
+    if (!reason) {
+      const r: ApiResponse = { code: 400, message: '删除库存必须填写删除原因' };
+      return res.status(400).json(r);
+    }
+
+    const storeId = getStoreId(req);
+    const record = await prisma.wh_inventory_imei.findUnique({ where: { id } });
+    if (!record) {
+      const r: ApiResponse = { code: 404, message: '库存记录不存在' };
+      return res.status(404).json(r);
+    }
+    if (record.status !== 'in_stock') {
+      const r: ApiResponse = { code: 400, message: '仅可删除在库状态的库存' };
+      return res.status(400).json(r);
+    }
+    if (storeId && record.store_id !== storeId) {
+      const r: ApiResponse = { code: 400, message: '该库存不属于当前门店' };
+      return res.status(400).json(r);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. 软删除 IMEI 明细
+      await tx.wh_inventory_imei.update({
+        where: { id },
+        data: { status: 'deleted' },
+      });
+
+      // 2. 扣减汇总库存
+      const inventory = await tx.wh_inventory.findUnique({
+        where: { model_id_store_id: { model_id: record.model_id, store_id: record.store_id } },
+      });
+      const qtyBefore = inventory?.quantity || 0;
+      const qtyAfter = Math.max(0, qtyBefore - 1);
+      if (inventory) {
+        await tx.wh_inventory.update({ where: { id: inventory.id }, data: { quantity: qtyAfter } });
+      }
+
+      // 3. 库存流水
+      await tx.wh_inventory_log.create({
+        data: {
+          model_id: record.model_id,
+          store_id: record.store_id,
+          change_type: 'inventory_delete',
+          qty_before: qtyBefore,
+          qty_change: -1,
+          qty_after: qtyAfter,
+          ref_type: 'inventory',
+          ref_id: record.id,
+          operator_id: req.user!.userId,
+          remark: `删除库存，原因：${reason}`,
+        },
+      });
+
+      // 4. 操作日志
+      await tx.sys_operation_log.create({
+        data: {
+          user_id: req.user!.userId,
+          store_id: record.store_id,
+          module: 'inventory',
+          action: 'delete',
+          target_id: record.id,
+          detail: `删除IMEI(${record.imei})，原因：${reason}`,
+        },
+      });
+    });
+
+    const r: ApiResponse = { code: 200, message: '删除成功' };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 删除某型号的全部在库库存（需填写删除原因）
+router.delete('/model/:modelId', async (req: Request, res: Response) => {
+  try {
+    const modelId = parseInt(req.params.modelId);
+    const { delete_reason } = req.body || {};
+    const reason = typeof delete_reason === 'string' ? delete_reason.trim() : '';
+    if (!reason) {
+      const r: ApiResponse = { code: 400, message: '删除库存必须填写删除原因' };
+      return res.status(400).json(r);
+    }
+
+    const storeId = getStoreId(req);
+    const imeiWhere: any = { model_id: modelId, status: 'in_stock' };
+    if (storeId) imeiWhere.store_id = storeId;
+
+    const records = await prisma.wh_inventory_imei.findMany({
+      where: imeiWhere,
+      select: { id: true, imei: true, store_id: true },
+    });
+    if (records.length === 0) {
+      const r: ApiResponse = { code: 400, message: '该型号无在库库存可删除' };
+      return res.status(400).json(r);
+    }
+
+    // 按门店分组，逐门店扣减汇总库存并记录
+    const byStore = new Map<number, typeof records>();
+    for (const rec of records) {
+      if (!byStore.has(rec.store_id)) byStore.set(rec.store_id, []);
+      byStore.get(rec.store_id)!.push(rec);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. 软删除全部在库明细
+      await tx.wh_inventory_imei.updateMany({
+        where: { id: { in: records.map((x) => x.id) } },
+        data: { status: 'deleted' },
+      });
+
+      // 2. 逐门店：汇总库存清零 + 流水 + 操作日志
+      for (const [storeId, group] of byStore) {
+        const inventory = await tx.wh_inventory.findUnique({
+          where: { model_id_store_id: { model_id: modelId, store_id: storeId } },
+        });
+        const qtyBefore = inventory?.quantity || 0;
+        if (inventory) {
+          await tx.wh_inventory.update({ where: { id: inventory.id }, data: { quantity: 0 } });
+        }
+
+        await tx.wh_inventory_log.create({
+          data: {
+            model_id: modelId,
+            store_id: storeId,
+            change_type: 'inventory_delete',
+            qty_before: qtyBefore,
+            qty_change: -group.length,
+            qty_after: 0,
+            ref_type: 'inventory_model',
+            ref_id: modelId,
+            operator_id: req.user!.userId,
+            remark: `删除型号全部库存${group.length}台，原因：${reason}`,
+          },
+        });
+
+        await tx.sys_operation_log.create({
+          data: {
+            user_id: req.user!.userId,
+            store_id: storeId,
+            module: 'inventory',
+            action: 'delete',
+            target_id: modelId,
+            detail: `删除型号(${modelId})库存${group.length}台，原因：${reason}`,
+          },
+        });
+      }
+    });
+
+    const r: ApiResponse = { code: 200, message: `已删除 ${records.length} 台库存` };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };

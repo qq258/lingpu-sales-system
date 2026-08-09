@@ -92,6 +92,11 @@ if not exist "%~dp0node\\node.exe" (
 
 set "PATH=%~dp0node;%PATH%"
 
+REM Check database file
+if not exist "%~dp0server\\data\\database.sqlite" (
+    echo [提示] 未检测到数据库文件（首次安装请使用完整包，或通过数据工具还原）
+)
+
 echo [1/3] Starting backend service (port 3000)...
 start "Backend" /min cmd /c "%~dp0node\\node.exe %~dp0server\\dist\\index.js"
 
@@ -153,10 +158,27 @@ pause
 
 // ==================== MAIN ====================
 const shouldBuild = process.argv.includes('--build');
+const updateMode = process.argv.includes('--update');
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function writeVersionFile(targetDir) {
+  let version = '1.0.0';
+  try {
+    const rootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+    version = rootPkg.version || version;
+  } catch (e) {}
+  const info = { version, buildTime: new Date().toISOString(), mode: updateMode ? 'update' : 'full' };
+  fs.writeFileSync(path.join(targetDir, 'version.json'), JSON.stringify(info, null, 2));
+  console.log(`  version.json written (v${version}${updateMode ? ', update mode' : ''})`);
+}
 
 function main() {
   console.log('========================================');
   console.log('  手机销售系统 - Windows 便携式打包');
+  console.log(updateMode ? '  模式：仅更新程序（保留本地数据）' : '  模式：全新打包');
   console.log('========================================\n');
 
   // Step 1: Build
@@ -184,19 +206,32 @@ function main() {
     }
   }
 
-  // Step 2: Clean and prepare release directory
+  // Step 2: Prepare release directory
   console.log('\n[2/5] Preparing release directory...');
-  if (fs.existsSync(RELEASE_DIR)) {
-    try { fs.rmSync(RELEASE_DIR, { recursive: true, force: true }); } catch (e) {
-      // If direct delete fails (long paths), try robocopy
-      const emptyDir = path.join(ROOT, '.empty-delete');
-      fs.mkdirSync(emptyDir, { recursive: true });
-      robocopy(emptyDir, RELEASE_DIR);
-      try { fs.rmSync(RELEASE_DIR, { recursive: true, force: true }); } catch (e2) {}
-      try { fs.rmSync(emptyDir, { recursive: true, force: true }); } catch (e2) {}
+  if (updateMode) {
+    // 仅更新程序：保留 release 下已有的本地数据
+    ensureDir(RELEASE_DIR);
+    const dataDir = path.join(RELEASE_DIR, 'server', 'data');
+    if (fs.existsSync(dataDir) && fs.readdirSync(dataDir).length > 0) {
+      console.log('  Update mode: 保留现有本地数据 (server/data).');
+    } else {
+      console.log('  Update mode: 未检测到本地数据，复制当前数据库作为初始数据...');
+      ensureDir(dataDir);
+      robocopy(path.join(ROOT, 'server', 'data'), dataDir);
     }
+  } else {
+    if (fs.existsSync(RELEASE_DIR)) {
+      try { fs.rmSync(RELEASE_DIR, { recursive: true, force: true }); } catch (e) {
+        // If direct delete fails (long paths), try robocopy
+        const emptyDir = path.join(ROOT, '.empty-delete');
+        fs.mkdirSync(emptyDir, { recursive: true });
+        robocopy(emptyDir, RELEASE_DIR);
+        try { fs.rmSync(RELEASE_DIR, { recursive: true, force: true }); } catch (e2) {}
+        try { fs.rmSync(emptyDir, { recursive: true, force: true }); } catch (e2) {}
+      }
+    }
+    fs.mkdirSync(RELEASE_DIR, { recursive: true });
   }
-  fs.mkdirSync(RELEASE_DIR, { recursive: true });
 
   // Create scripts subdirectory (may already exist if rmSync partially failed)
   const scriptsDir = path.join(RELEASE_DIR, 'scripts');
@@ -286,15 +321,21 @@ function main() {
     console.warn('  WARNING: @prisma/client wrapper not found! Prisma may not work at runtime.');
   }
 
-  // 3.5 Copy database
-  console.log('  Copying database...');
-  robocopy(
-    path.join(ROOT, 'server', 'data'),
-    path.join(RELEASE_DIR, 'server', 'data')
-  );
+  // 3.5 Copy database（更新模式保留本地数据，不覆盖）
+  if (updateMode) {
+    console.log('  Skipping database copy (update mode, local data preserved).');
+  } else {
+    console.log('  Copying database...');
+    robocopy(
+      path.join(ROOT, 'server', 'data'),
+      path.join(RELEASE_DIR, 'server', 'data')
+    );
+  }
 
-  // 3.6 Copy uploads (optional)
-  if (fs.existsSync(path.join(ROOT, 'server', 'uploads'))) {
+  // 3.6 Copy uploads (optional，更新模式保留)
+  if (updateMode) {
+    console.log('  Skipping uploads copy (update mode, local files preserved).');
+  } else if (fs.existsSync(path.join(ROOT, 'server', 'uploads'))) {
     console.log('  Copying uploads...');
     robocopy(
       path.join(ROOT, 'server', 'uploads'),
@@ -331,89 +372,98 @@ function main() {
     path.join(RELEASE_DIR, 'scripts', 'serve-static.js')
   );
 
-  // Step 4: Prepare portable Node.js runtime
+  // Step 4: Prepare portable Node.js runtime（更新模式下已存在则跳过）
   console.log('\n[4/5] Preparing Node.js runtime...');
   const nodeDir = path.join(RELEASE_DIR, 'node');
   fs.mkdirSync(nodeDir, { recursive: true });
 
-  // Determine zip source: prefer local zip file, fallback to download
-  let zipFile;
-  let zipSource = 'local';
-
-  if (fs.existsSync(LOCAL_NODE_ZIP)) {
-    zipFile = LOCAL_NODE_ZIP;
-    console.log(`  Using local zip: ${LOCAL_NODE_ZIP}`);
+  if (updateMode && fs.existsSync(path.join(nodeDir, 'node.exe'))) {
+    console.log('  Node.js runtime already present, skipping (update mode).');
   } else {
-    zipFile = path.join(RELEASE_DIR, 'node.zip');
-    zipSource = 'download';
-    const downloadOk = downloadNodeJS(zipFile);
-    if (!downloadOk) {
-      console.error(`\n  [WARNING] Failed to download Node.js.`);
-      console.error(`  Please manually download and extract:`);
-      console.error(`  ${NODE_URL}`);
-      console.error(`  Put the files into: ${nodeDir}`);
-      return; // Skip extraction
-    }
-  }
+    // Determine zip source: prefer local zip file, fallback to download
+    let zipFile;
+    let zipSource = 'local';
 
-  console.log('  Extracting Node.js...');
-  ps(`Expand-Archive -Path '${zipFile}' -DestinationPath '${nodeDir}' -Force`);
-
-  // Move files from nested dir to node/
-  const nestedDir = path.join(nodeDir, `node-v${NODE_VERSION}-win-x64`);
-  if (fs.existsSync(nestedDir)) {
-    const items = fs.readdirSync(nestedDir);
-    for (const item of items) {
-      const src = path.join(nestedDir, item);
-      const dest = path.join(nodeDir, item);
-      if (fs.existsSync(dest)) {
-        if (fs.statSync(dest).isDirectory()) {
-          robocopy(src, dest);
-          fs.rmSync(src, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(dest);
-          fs.renameSync(src, dest);
-        }
-      } else {
-        fs.renameSync(src, dest);
+    if (fs.existsSync(LOCAL_NODE_ZIP)) {
+      zipFile = LOCAL_NODE_ZIP;
+      console.log(`  Using local zip: ${LOCAL_NODE_ZIP}`);
+    } else {
+      zipFile = path.join(RELEASE_DIR, 'node.zip');
+      zipSource = 'download';
+      const downloadOk = downloadNodeJS(zipFile);
+      if (!downloadOk) {
+        console.error(`\n  [WARNING] Failed to download Node.js.`);
+        console.error(`  Please manually download and extract:`);
+        console.error(`  ${NODE_URL}`);
+        console.error(`  Put the files into: ${nodeDir}`);
+        return; // Skip extraction
       }
     }
-    fs.rmdirSync(nestedDir);
-  }
 
-  // Only clean up zip if it was downloaded (keep local zip for future use)
-  if (zipSource === 'download' && fs.existsSync(zipFile)) {
-    fs.unlinkSync(zipFile);
-  }
+    console.log('  Extracting Node.js...');
+    ps(`Expand-Archive -Path '${zipFile}' -DestinationPath '${nodeDir}' -Force`);
 
-  // 瘦身: 删除 Node.js 中不需要的模块(发布版本无需 npm CLI)
-  console.log('  Stripping Node.js runtime...');
-  // 删除整个 node_modules (npm 及其依赖, 发布环境不需要)
-  const nodeModulesDir = path.join(nodeDir, 'node_modules');
-  if (fs.existsSync(nodeModulesDir)) {
-    try { fs.rmSync(nodeModulesDir, { recursive: true, force: true }); } catch {}
-  }
-  // 删除 C++ 头文件等开发资源
-  for (const dir of ['include']) {
-    const fp = path.join(nodeDir, dir);
-    if (fs.existsSync(fp)) try { fs.rmSync(fp, { recursive: true, force: true }); } catch {}
-  }
-  console.log('  Node.js runtime stripped.');
+    // Move files from nested dir to node/
+    const nestedDir = path.join(nodeDir, `node-v${NODE_VERSION}-win-x64`);
+    if (fs.existsSync(nestedDir)) {
+      const items = fs.readdirSync(nestedDir);
+      for (const item of items) {
+        const src = path.join(nestedDir, item);
+        const dest = path.join(nodeDir, item);
+        if (fs.existsSync(dest)) {
+          if (fs.statSync(dest).isDirectory()) {
+            robocopy(src, dest);
+            fs.rmSync(src, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(dest);
+            fs.renameSync(src, dest);
+          }
+        } else {
+          fs.renameSync(src, dest);
+        }
+      }
+      fs.rmdirSync(nestedDir);
+    }
 
-  console.log('  Node.js extracted successfully.');
+    // Only clean up zip if it was downloaded (keep local zip for future use)
+    if (zipSource === 'download' && fs.existsSync(zipFile)) {
+      fs.unlinkSync(zipFile);
+    }
+
+    // 瘦身: 删除 Node.js 中不需要的模块(发布版本无需 npm CLI)
+    console.log('  Stripping Node.js runtime...');
+    // 删除整个 node_modules (npm 及其依赖, 发布环境不需要)
+    const nodeModulesDir = path.join(nodeDir, 'node_modules');
+    if (fs.existsSync(nodeModulesDir)) {
+      try { fs.rmSync(nodeModulesDir, { recursive: true, force: true }); } catch {}
+    }
+    // 删除 C++ 头文件等开发资源
+    for (const dir of ['include']) {
+      const fp = path.join(nodeDir, dir);
+      if (fs.existsSync(fp)) try { fs.rmSync(fp, { recursive: true, force: true }); } catch {}
+    }
+    console.log('  Node.js runtime stripped.');
+
+    console.log('  Node.js extracted successfully.');
+  }
 
   // Step 5: Create launcher scripts
   console.log('\n[5/5] Creating launcher scripts...');
   createLauncherScripts(RELEASE_DIR);
+  writeVersionFile(RELEASE_DIR);
 
   // Summary
   const totalSize = getDirSize(RELEASE_DIR);
   console.log('\n========================================');
-  console.log('  Package Complete!');
+  console.log(updateMode ? '  Update Complete!' : '  Package Complete!');
   console.log('========================================');
   console.log(`  Output: ${RELEASE_DIR}`);
   console.log(`  Size:   ${(totalSize / 1024 / 1024).toFixed(1)} MB`);
   console.log('');
+  if (updateMode) {
+    console.log('  Update mode: 本地数据 (server/data、server/uploads) 已保留。');
+    console.log('');
+  }
   console.log('  How to use:');
   console.log('  1. Copy "手机销售系统" folder to target Windows PC');
   console.log('  2. Run start.bat');

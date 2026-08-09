@@ -104,11 +104,6 @@ export async function searchModels(keyword: string): Promise<ModelData[]> {
   }))
 }
 
-export async function scanBarcode(barcode: string): Promise<ModelData> {
-  const res: any = await request.get('/products/scan-barcode', { params: { barcode } })
-  return res.data
-}
-
 export async function importBrandModels(
   file: File,
   conflictMode: 'skip' | 'overwrite' = 'skip',

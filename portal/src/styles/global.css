@@ -87,3 +87,15 @@ a { color: var(--primary); text-decoration: none; }
 .el-select-dropdown__item { font-size: 14px !important; padding: 8px 16px !important; }
 .el-input-number { --el-component-size: 42px !important; }
 .el-date-editor { --el-component-size: 42px !important; }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .page-container { padding: 16px 12px 24px; }
+  .page-title { font-size: 22px; }
+  .page-title-row { flex-wrap: wrap; row-gap: 10px; }
+  .title-line { display: none; }
+  /* 弹窗/确认框在小屏下铺满宽度（覆盖组件内联 width） */
+  .el-dialog { width: 94% !important; max-width: 94%; }
+  .el-message-box { width: 92% !important; max-width: 92%; }
+  .el-table { font-size: 13px; }
+}

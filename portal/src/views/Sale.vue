@@ -532,7 +532,10 @@ async function doNormalPay() {
     resetAll()
     nextTick(() => scanRef.value?.focus())
   } catch (e: any) {
-    ElMessage.error(e?.message || '开单失败')
+    // 业务错误（400 等）已由请求拦截器提示，此处仅兜底网络/未知错误
+    if (!e?.response?.data?.message) {
+      ElMessage.error(e?.message || '开单失败')
+    }
   }
 }
 
@@ -599,7 +602,10 @@ async function submitNoStockSale() {
     resetAll()
     nextTick(() => brandInputRef.value?.focus())
   } catch (e: any) {
-    ElMessage.error(e?.message || '开单失败')
+    // 业务错误（400 等）已由请求拦截器提示，此处仅兜底网络/未知错误
+    if (!e?.response?.data?.message) {
+      ElMessage.error(e?.message || '开单失败')
+    }
   }
 }
 

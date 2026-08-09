@@ -153,7 +153,7 @@ function handlePrint() {
     ? `<div class="receipt-divider"></div><div class="receipt-warranty">${warrantyContent.value}</div>`
     : ''
 
-  const printWindow = window.open('', '_blank', 'width=380,height=600')
+  const printWindow = window.open('', '_blank', 'width=520,height=760')
   if (!printWindow) {
     ElMessage.error('请允许弹出窗口以打印小票')
     return
@@ -164,33 +164,34 @@ function handlePrint() {
     <head>
       <title>小票打印</title>
       <style>
-        body { font-family: 'Courier New', monospace; font-size: 12px; padding: 10px; width: 300px; margin: 0 auto; background: #fff; }
-        .receipt-header { text-align: center; margin-bottom: 6px; }
-        .receipt-header h3 { margin: 0; font-size: 15px; }
-        .receipt-addr, .receipt-tel { margin: 2px 0 0; font-size: 11px; color: #555; }
-        .receipt-divider { border-top: 1px dashed #999; margin: 6px 0; }
-        .receipt-section-title { font-size: 11px; font-weight: bold; margin-bottom: 4px; }
-        .receipt-info .info-row, .receipt-customer .info-row { display: flex; justify-content: space-between; margin: 1px 0; font-size: 11px; }
-        .receipt-item { margin: 6px 0; padding: 4px 0; border-top: 1px dotted #ccc; }
+        @page { size: A5 portrait; margin: 8mm; }
+        body { font-family: 'Courier New', monospace; font-size: 13px; padding: 0; max-width: 132mm; margin: 0 auto; background: #fff; }
+        .receipt-header { text-align: center; margin-bottom: 8px; }
+        .receipt-header h3 { margin: 0; font-size: 17px; }
+        .receipt-addr, .receipt-tel { margin: 2px 0 0; font-size: 12px; color: #555; }
+        .receipt-divider { border-top: 1px dashed #999; margin: 8px 0; }
+        .receipt-section-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+        .receipt-info .info-row, .receipt-customer .info-row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 12px; }
+        .receipt-item { margin: 8px 0; padding: 5px 0; border-top: 1px dotted #ccc; }
         .receipt-item:first-child { border-top: none; }
         .item-header { display: flex; justify-content: space-between; margin-bottom: 2px; }
-        .item-name { font-size: 11px; font-weight: bold; }
-        .item-price { font-size: 11px; font-weight: bold; }
+        .item-name { font-size: 13px; font-weight: bold; }
+        .item-price { font-size: 13px; font-weight: bold; }
         .item-codes { margin: 2px 0; }
-        .item-code-row { display: flex; justify-content: space-between; margin: 1px 0; font-size: 10px; }
+        .item-code-row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 11px; }
         .code-label { color: #666; font-weight: bold; }
         .code-value { color: #333; font-family: monospace; letter-spacing: 0.5px; }
-        .receipt-total .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; font-size: 12px; }
-        .receipt-remark { font-size: 11px; color: #555; }
+        .receipt-total .total-row { display: flex; justify-content: space-between; margin: 3px 0; font-weight: bold; font-size: 13px; }
+        .receipt-remark { font-size: 12px; color: #555; }
         .discount-row { color: #e67e22; }
-        .discount-text { font-size: 11px; font-weight: 600; }
-        .receipt-warranty { font-size: 10px; line-height: 1.5; color: #555; }
-        .receipt-warranty p { margin: 2px 0; }
-        .receipt-warranty ul, .receipt-warranty ol { margin: 2px 0; padding-left: 16px; }
-        .receipt-warranty li { margin: 1px 0; }
+        .discount-text { font-size: 12px; font-weight: 600; }
+        .receipt-warranty { font-size: 11px; line-height: 1.6; color: #555; }
+        .receipt-warranty p { margin: 3px 0; }
+        .receipt-warranty ul, .receipt-warranty ol { margin: 3px 0; padding-left: 18px; }
+        .receipt-warranty li { margin: 2px 0; }
         .receipt-warranty strong { font-weight: bold; }
-        .receipt-footer { text-align: center; font-size: 11px; color: #888; margin-top: 4px; }
-        .receipt-footer p { margin: 2px 0; }
+        .receipt-footer { text-align: center; font-size: 12px; color: #888; margin-top: 6px; }
+        .receipt-footer p { margin: 3px 0; }
         @media print { body { padding: 0; } }
       </style>
     </head>

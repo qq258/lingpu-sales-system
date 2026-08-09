@@ -321,6 +321,13 @@ router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response
         throw new Error(`IMEI ${imei} 已存在于系统中`);
       }
 
+      // 未传单价时缺省取型号成本价（入库不再录入价格）
+      let finalPrice = unit_price || 0;
+      if (!finalPrice) {
+        const m = await tx.pdt_model.findUnique({ where: { id: model_id }, select: { cost_price: true } });
+        finalPrice = m?.cost_price || 0;
+      }
+
       return tx.pch_purchase_item.create({
         data: {
           entry_id: entryId,
@@ -328,8 +335,8 @@ router.post('/purchase-entries/:id/add-item', async (req: Request, res: Response
           imei,
           imei2: imei2 || null,
           sn_code: sn_code || null,
-          unit_price: unit_price || 0,
-          subtotal: unit_price || 0,
+          unit_price: finalPrice,
+          subtotal: finalPrice,
         },
         include: { model: { include: { brand: { select: { id: true, name: true } } } } },
       });
@@ -388,6 +395,12 @@ router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Respon
           failedItems.push({ imei, reason: 'IMEI 已存在' });
           continue;
         }
+        // 未传单价时缺省取型号成本价（入库不再录入价格）
+        let finalPrice = unit_price || 0;
+        if (!finalPrice) {
+          const m = await tx.pdt_model.findUnique({ where: { id: model_id }, select: { cost_price: true } });
+          finalPrice = m?.cost_price || 0;
+        }
         const item = await tx.pch_purchase_item.create({
           data: {
             entry_id: entryId,
@@ -395,8 +408,8 @@ router.post('/purchase-entries/:id/imei/batch', async (req: Request, res: Respon
             imei,
             imei2,
             sn_code,
-            unit_price: unit_price || 0,
-            subtotal: unit_price || 0,
+            unit_price: finalPrice,
+            subtotal: finalPrice,
           },
         });
         successItems.push(item);
@@ -503,7 +516,13 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
           throw new Error(`IMEI ${imei} 已存在于系统中`);
         }
 
-        const subtotal = unit_price || 0;
+        // 未传单价时缺省取型号成本价（入库不再录入价格）
+        let finalPrice = unit_price || 0;
+        if (!finalPrice) {
+          const m = await tx.pdt_model.findUnique({ where: { id: model_id }, select: { cost_price: true } });
+          finalPrice = m?.cost_price || 0;
+        }
+        const subtotal = finalPrice;
         totalAmount += subtotal;
 
         await tx.pch_purchase_item.create({
@@ -513,22 +532,30 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
             imei,
             imei2: imei2 || null,
             sn_code: sn_code || null,
-            unit_price: unit_price || 0,
+            unit_price: finalPrice,
             subtotal,
           },
         });
 
-        await tx.wh_inventory_imei.create({
-          data: {
-            model_id,
-            store_id: storeId,
-            imei,
-            imei2: imei2 || null,
-            sn_code: sn_code || null,
-            status: 'in_stock',
-            entry_id: entry.id,
-          },
-        });
+        try {
+          await tx.wh_inventory_imei.create({
+            data: {
+              model_id,
+              store_id: storeId,
+              imei,
+              imei2: imei2 || null,
+              sn_code: sn_code || null,
+              status: 'in_stock',
+              entry_id: entry.id,
+            },
+          });
+        } catch (err: any) {
+          // 并发下唯一约束冲突兜底
+          if (err?.code === 'P2002') {
+            throw new Error(`IMEI ${imei} 已存在于系统中，无法重复入库`);
+          }
+          throw err;
+        }
       }
 
       await tx.pch_purchase_entry.update({
@@ -627,17 +654,25 @@ router.put('/purchase-entries/:id/confirm', async (req: Request, res: Response) 
           throw new Error(`IMEI ${item.imei} 已存在于系统中`);
         }
 
-        await tx.wh_inventory_imei.create({
-          data: {
-            model_id: item.model_id,
-            store_id: entry.store_id,
-            imei: item.imei,
-            imei2: item.imei2 || null,
-            sn_code: item.sn_code || null,
-            status: 'in_stock',
-            entry_id: id,
-          },
-        });
+        try {
+          await tx.wh_inventory_imei.create({
+            data: {
+              model_id: item.model_id,
+              store_id: entry.store_id,
+              imei: item.imei,
+              imei2: item.imei2 || null,
+              sn_code: item.sn_code || null,
+              status: 'in_stock',
+              entry_id: id,
+            },
+          });
+        } catch (err: any) {
+          // 并发下唯一约束冲突兜底
+          if (err?.code === 'P2002') {
+            throw new Error(`IMEI ${item.imei} 已存在于系统中，无法重复入库`);
+          }
+          throw err;
+        }
       }
 
       const totalAmount = entry.items.reduce((sum, it) => sum + (it.subtotal || 0), 0);

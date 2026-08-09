@@ -64,6 +64,176 @@ router.get('/backup/download', async (_req: Request, res: Response) => {
   }
 });
 
+// ==================== 备份节点管理 ====================
+
+const DATA_DIR = path.resolve(__dirname, '../../data');
+const DB_FILE = 'database.sqlite';
+const BACKUP_PREFIX = 'database.sqlite.backup.';
+
+function dataDirPath(): string {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  return DATA_DIR;
+}
+
+function stamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+function listBackupNodes(): Array<{ name: string; size: number; created_at: string }> {
+  const dir = dataDirPath();
+  return fs.readdirSync(dir)
+    .filter((f) => f.startsWith(BACKUP_PREFIX))
+    .map((f) => {
+      const stat = fs.statSync(path.join(dir, f));
+      return { name: f, size: stat.size, created_at: new Date(stat.mtimeMs).toISOString() };
+    })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+function isValidBackupName(name: string): boolean {
+  return /^database\.sqlite\.backup\.[^/\\]+$/.test(name);
+}
+
+// 备份节点列表
+router.get('/backup', async (_req: Request, res: Response) => {
+  try {
+    const r: ApiResponse = { code: 200, message: 'success', data: listBackupNodes() };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 创建备份节点（将当前数据库复制为带时间戳的备份文件）
+router.post('/backup', async (_req: Request, res: Response) => {
+  try {
+    const dbPath = path.join(dataDirPath(), DB_FILE);
+    if (!fs.existsSync(dbPath)) {
+      const r: ApiResponse = { code: 404, message: '数据库文件不存在' };
+      return res.status(404).json(r);
+    }
+    const name = BACKUP_PREFIX + stamp();
+    fs.copyFileSync(dbPath, path.join(dataDirPath(), name));
+    const stat = fs.statSync(path.join(dataDirPath(), name));
+    const r: ApiResponse = {
+      code: 200,
+      message: '备份创建成功',
+      data: { name, size: stat.size, created_at: new Date(stat.mtimeMs).toISOString() },
+    };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 下载指定备份节点
+router.get('/backup/download/:name', async (req: Request, res: Response) => {
+  try {
+    const name = req.params.name;
+    if (!isValidBackupName(name)) {
+      const r: ApiResponse = { code: 400, message: '非法的备份文件名' };
+      return res.status(400).json(r);
+    }
+    const filePath = path.join(dataDirPath(), name);
+    if (!fs.existsSync(filePath)) {
+      const r: ApiResponse = { code: 404, message: '备份文件不存在' };
+      return res.status(404).json(r);
+    }
+    const stat = fs.statSync(filePath);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename=${name}`);
+    res.setHeader('Content-Length', stat.size);
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 删除备份节点
+router.delete('/backup/:name', async (req: Request, res: Response) => {
+  try {
+    const name = req.params.name;
+    if (!isValidBackupName(name)) {
+      const r: ApiResponse = { code: 400, message: '非法的备份文件名' };
+      return res.status(400).json(r);
+    }
+    const filePath = path.join(dataDirPath(), name);
+    if (!fs.existsSync(filePath)) {
+      const r: ApiResponse = { code: 404, message: '备份文件不存在' };
+      return res.status(404).json(r);
+    }
+    fs.unlinkSync(filePath);
+    const r: ApiResponse = { code: 200, message: '删除成功' };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
+// 快速还原：支持从备份节点还原（body: { name }）或上传 .sqlite 文件还原
+router.post('/restore', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    let sourcePath: string | null = null;
+    if (req.file) {
+      sourcePath = req.file.path;
+    } else {
+      const name = req.body?.name;
+      if (!name || !isValidBackupName(name)) {
+        const r: ApiResponse = { code: 400, message: '请提供备份节点或上传备份文件' };
+        return res.status(400).json(r);
+      }
+      sourcePath = path.join(dataDirPath(), name);
+      if (!fs.existsSync(sourcePath)) {
+        const r: ApiResponse = { code: 404, message: '备份文件不存在' };
+        return res.status(404).json(r);
+      }
+    }
+
+    // 校验 SQLite 文件头
+    const header = fs.readFileSync(sourcePath).slice(0, 16).toString('latin1');
+    if (!header.startsWith('SQLite format 3')) {
+      if (req.file) fs.unlink(sourcePath, () => {});
+      const r: ApiResponse = { code: 400, message: '文件不是有效的 SQLite 数据库' };
+      return res.status(400).json(r);
+    }
+
+    const dbPath = path.join(dataDirPath(), DB_FILE);
+    if (!fs.existsSync(dbPath)) {
+      const r: ApiResponse = { code: 404, message: '当前数据库文件不存在' };
+      return res.status(404).json(r);
+    }
+
+    // 还原前自动备份当前库，防止误操作
+    const safetyBackup = BACKUP_PREFIX + 'auto.' + stamp();
+    fs.copyFileSync(dbPath, path.join(dataDirPath(), safetyBackup));
+
+    // 断开连接 → 原子替换 → 重连（node 单线程，期间无其他请求）
+    await prisma.$disconnect();
+    try {
+      const tmp = path.join(dataDirPath(), '.restore-tmp.sqlite');
+      fs.copyFileSync(sourcePath, tmp);
+      fs.renameSync(tmp, dbPath);
+    } finally {
+      await prisma.$connect();
+    }
+
+    if (req.file) fs.unlink(sourcePath, () => {});
+
+    const r: ApiResponse = { code: 200, message: '还原成功（已自动备份还原前的数据库）', data: { safety_backup: safetyBackup } };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = { code: 500, message: err.message };
+    return res.status(500).json(r);
+  }
+});
+
 // 按表导出 Excel
 router.get('/export/:table', async (req: Request, res: Response) => {
   try {

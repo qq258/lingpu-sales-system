@@ -7,8 +7,26 @@
 
     <div class="glass" style="padding:22px;border-radius:var(--radius);margin-bottom:20px;">
       <label class="field-label">供应商</label>
-      <el-select v-model="supplierId" placeholder="请选择供应商" filterable size="large" style="width:100%;">
+      <el-select
+        v-model="supplierId"
+        placeholder="请选择供应商（可输入搜索）"
+        filterable
+        remote
+        :remote-method="searchSuppliers"
+        :loading="supplierLoading"
+        size="large"
+        style="width:100%;"
+        @visible-change="onSupplierDropdownOpen"
+      >
         <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+        <template #footer>
+          <div v-if="supplierSearchText && !suppliers.some(s => s.name === supplierSearchText)" class="supplier-add-row">
+            <button class="supplier-add-btn" @mousedown.prevent @click.stop="openAddSupplier">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              新增供应商：{{ supplierSearchText }}
+            </button>
+          </div>
+        </template>
       </el-select>
     </div>
 
@@ -22,10 +40,6 @@
         <el-select v-model="modelId" placeholder="型号" filterable size="large" style="width:260px;" :disabled="!brandId">
           <el-option v-for="m in models" :key="m.id" :label="`${m.name} ${m.color||''} ${m.memory||''}`.trim()" :value="m.id" />
         </el-select>
-        <div class="price-field">
-          <span class="price-label">单价</span>
-          <el-input-number v-model="unitPrice" :min="0" :precision="2" :step="100" size="large" controls-position="right" style="width:150px;" />
-        </div>
       </div>
       <div class="imei-row">
         <div class="imei-input-wrap">
@@ -64,7 +78,6 @@
           <div class="item-name">{{ item.brandName }} {{ item.modelName }}</div>
           <div class="item-imei">{{ item.imei }}<template v-if="item.imei2"> / IMEI2: {{ item.imei2 }}</template><template v-if="item.snCode"> / SN: {{ item.snCode }}</template></div>
         </div>
-        <span class="item-price">¥{{ item.unitPrice.toFixed(2) }}</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         <button class="item-del" @click="items.splice(i, 1)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -74,25 +87,47 @@
     <div v-else class="empty-hint">尚未添加任何手机</div>
 
     <div v-if="items.length" class="summary-bar glass">
-      <span>共 {{ items.length }} 台 · 合计 ¥{{ totalAmount.toFixed(2) }}</span>
+      <span>共 {{ items.length }} 台</span>
     </div>
 
     <button v-if="items.length" class="confirm-btn" @click="showConfirm = true">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-      确认入库  {{ items.length }} 台 / ¥{{ totalAmount.toFixed(2) }}
+      确认入库  {{ items.length }} 台
     </button>
 
     <ConfirmDialog
       :visible="showConfirm" title="确认入库"
-      :message="`共 ${items.length} 台手机，总金额 ¥${totalAmount.toFixed(2)}`"
+      :message="`共 ${items.length} 台手机`"
       type="success" confirm-text="确认入库" cancel-text="再想想"
       @confirm="handleConfirm" @cancel="showConfirm = false"
     />
+
+    <!-- 新增供应商 -->
+    <el-dialog v-model="addSupplierVisible" title="新增供应商" width="440px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="名称" required>
+          <el-input v-model="addSupplierForm.name" placeholder="供应商名称" />
+        </el-form-item>
+        <el-form-item label="联系人">
+          <el-input v-model="addSupplierForm.contact_person" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="addSupplierForm.phone" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="地址">
+          <el-input v-model="addSupplierForm.address" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addSupplierVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addSupplierSaving" @click="saveSupplier">保存并选中</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, watch, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getSuppliers, checkImeiExists, quickConfirmPurchaseEntry } from '@/api/purchase'
@@ -106,9 +141,13 @@ const suppliers = ref<any[]>([])
 const brands = ref<any[]>([])
 const models = ref<any[]>([])
 const supplierId = ref<number | null>(null)
+const supplierLoading = ref(false)
+const supplierSearchText = ref('')
+const addSupplierVisible = ref(false)
+const addSupplierSaving = ref(false)
+const addSupplierForm = ref({ name: '', contact_person: '', phone: '', address: '' })
 const brandId = ref<number | null>(null)
 const modelId = ref<number | null>(null)
-const unitPrice = ref(0)
 const imeiInput = ref('')
 const imei2Input = ref('')
 const snCodeInput = ref('')
@@ -118,8 +157,6 @@ const imeiError = ref('')
 const imeiChecking = ref(false)
 let imeiCheckTimer: ReturnType<typeof setTimeout> | null = null
 
-const totalAmount = computed(() => items.value.reduce((s, i) => s + i.unitPrice, 0))
-
 onMounted(async () => {
   try { suppliers.value = await getSuppliers() } catch {}
   try { brands.value = await getBrands() } catch {}
@@ -127,12 +164,64 @@ onMounted(async () => {
 })
 
 async function onBrandChange() {
-  modelId.value = null; unitPrice.value = 0
+  modelId.value = null
   if (!brandId.value) { models.value = []; return }
   try { models.value = await getModels(brandId.value) } catch { models.value = [] }
 }
 
-// 扫码自动校验 IMEI 重复性
+// ---- 供应商：远程过滤 + 快捷新增 ----
+async function searchSuppliers(query: string) {
+  supplierSearchText.value = query.trim()
+  supplierLoading.value = true
+  try {
+    suppliers.value = await getSuppliers(supplierSearchText.value || undefined)
+  } catch {
+    suppliers.value = []
+  } finally {
+    supplierLoading.value = false
+  }
+}
+
+async function onSupplierDropdownOpen(open: boolean) {
+  if (open) {
+    supplierSearchText.value = ''
+    supplierLoading.value = true
+    try { suppliers.value = await getSuppliers() } catch { suppliers.value = [] }
+    finally { supplierLoading.value = false }
+  }
+}
+
+function openAddSupplier() {
+  addSupplierForm.value = { name: supplierSearchText.value, contact_person: '', phone: '', address: '' }
+  addSupplierVisible.value = true
+}
+
+async function saveSupplier() {
+  if (!addSupplierForm.value.name.trim()) {
+    ElMessage.warning('请填写供应商名称')
+    return
+  }
+  addSupplierSaving.value = true
+  try {
+    const created = await createSupplier({
+      name: addSupplierForm.value.name,
+      contact_person: addSupplierForm.value.contact_person,
+      phone: addSupplierForm.value.phone,
+      address: addSupplierForm.value.address,
+    })
+    supplierId.value = created.id
+    supplierSearchText.value = ''
+    addSupplierVisible.value = false
+    try { suppliers.value = await getSuppliers() } catch { suppliers.value = [] }
+    ElMessage.success('供应商已新增并选中')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '新增失败')
+  } finally {
+    addSupplierSaving.value = false
+  }
+}
+
+// 扫码自动校验 IMEI 重复性（任意输入防抖触发后端校验）
 watch(imeiInput, (val) => {
   const trimmed = val.trim()
   // 输入为空时清除错误
@@ -146,8 +235,8 @@ watch(imeiInput, (val) => {
     imeiError.value = 'IMEI 已存在于本次入库清单中'
     return
   }
-  // IMEI 标准长度 15 位，达到长度后自动触发后端校验
-  if (trimmed.length >= 15) {
+  // 输入达到一定长度后自动触发后端校验（不依赖固定 15 位，兼容双卡/境外设备）
+  if (trimmed.length >= 8) {
     if (imeiCheckTimer) clearTimeout(imeiCheckTimer)
     imeiCheckTimer = setTimeout(async () => {
       imeiChecking.value = true
@@ -184,7 +273,7 @@ function handleAdd() {
     brandName: brands.value.find((b: any) => b.id === brandId.value)?.name || '',
     modelName: `${m.name} ${m.color || ''} ${m.memory||''}`.trim(),
     imei, imei2: imei2Input.value.trim() || undefined, snCode: snCodeInput.value.trim() || undefined,
-    unitPrice: unitPrice.value || m.salePrice || 0, modelId: modelId.value,
+    unitPrice: 0, modelId: modelId.value,
   })
   imeiError.value = ''
   imeiInput.value = ''; imei2Input.value = ''; snCodeInput.value = ''
@@ -200,7 +289,8 @@ async function handleConfirm() {
     })
     ElMessage.success({ message: `入库成功！共 ${items.value.length} 台`, duration: 3000 })
     items.value = []; supplierId.value = null; brandId.value = null; modelId.value = null
-    unitPrice.value = 0; imeiInput.value = ''
+    supplierSearchText.value = ''
+    imeiInput.value = ''
     nextTick(() => imeiRef.value?.focus())
   } catch (e: any) { ElMessage.error(e?.message || '入库失败') }
 }
@@ -208,13 +298,14 @@ async function handleConfirm() {
 
 <style scoped>
 .field-label { display: block; font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
+.supplier-add-row { padding: 6px 12px; border-top: 1px solid var(--border); }
+.supplier-add-btn { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); background: var(--primary-light); color: var(--primary); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: var(--transition); text-align: left; }
+.supplier-add-btn:hover { background: var(--primary); color: #fff; }
 .section-divider { text-align: center; font-size: 13px; color: var(--text-tertiary); margin: 20px 0; letter-spacing: 1.5px; position: relative; }
 .section-divider::before, .section-divider::after { content: ''; position: absolute; top: 50%; width: 60px; height: 1px; background: var(--border); }
 .section-divider::before { right: calc(50% + 50px); }
 .section-divider::after { left: calc(50% + 50px); }
 .add-row { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
-.price-field { display: flex; flex-direction: column; gap: 4px; }
-.price-label { font-size: 13px; color: var(--text-tertiary); }
 .imei-row { display: flex; gap: 12px; }
 .imei-input-wrap { flex: 1; }
 .input-field { width: 100%; height: 48px; padding: 0 16px; font-size: 17px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); outline: none; font-family: inherit; background: #fff; transition: var(--transition); }
