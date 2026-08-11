@@ -61,6 +61,13 @@ model sys_setting {
   updated_at DateTime @default(now()) @updatedAt
 }
 
+model sys_role_menu {
+  id         Int      @id @default(autoincrement())
+  role       String   @unique
+  menu_keys  String   @default("[]")
+  updated_at DateTime @default(now()) @updatedAt
+}
+
 model sys_operation_log {
   id         Int      @id @default(autoincrement())
   user_id    Int

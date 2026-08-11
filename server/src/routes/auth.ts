@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../utils/prisma';
 import { JWT_SECRET, JWT_EXPIRES_IN, ApiResponse, UserRole } from '../types';
 import { authMiddleware } from '../middleware/auth';
+import { getRoleMenuKeys } from './permissions';
 
 const router = Router();
 
@@ -41,6 +42,8 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
+    const menuKeys = await getRoleMenuKeys(user.role);
+
     const data: any = {
       token,
       userInfo: {
@@ -49,6 +52,7 @@ router.post('/login', async (req: Request, res: Response) => {
         realName: user.real_name,
         role: user.role,
         storeId: user.store_id,
+        menuKeys,
       },
     };
     if (stores) {
@@ -99,7 +103,8 @@ router.get('/userinfo', authMiddleware, async (req: Request, res: Response) => {
       });
     }
 
-    const r: ApiResponse = { code: 200, message: 'success', data: { ...user, store, stores } };
+    const menuKeys = await getRoleMenuKeys(user.role);
+    const r: ApiResponse = { code: 200, message: 'success', data: { ...user, store, stores, menuKeys } };
     return res.json(r);
   } catch (err: any) {
     const r: ApiResponse = { code: 500, message: err.message };

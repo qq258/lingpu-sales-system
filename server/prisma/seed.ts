@@ -395,6 +395,39 @@ async function main() {
   });
   console.log('✓ 系统设置（保修须知）创建完成');
 
+  // ========== 角色菜单权限 ==========
+  const roleMenuDefaults: Record<string, string[]> = {
+    super_admin: [
+      'dashboard', 'product_brand', 'store_list',
+      'purchase_entry', 'purchase_supplier',
+      'inventory_list', 'inventory_initial', 'inventory_logs',
+      'sales_new', 'sales_list', 'tools', 'after_sales',
+      'system_user', 'system_permission', 'settings_warranty',
+    ],
+    store_admin: [
+      'dashboard', 'product_brand',
+      'purchase_entry', 'purchase_supplier',
+      'inventory_list', 'inventory_initial', 'inventory_logs',
+      'sales_new', 'sales_list', 'tools', 'after_sales',
+      'system_user', 'settings_warranty',
+    ],
+    operator: [
+      'dashboard', 'product_brand',
+      'purchase_entry', 'purchase_supplier',
+      'inventory_list', 'inventory_logs',
+      'sales_new', 'sales_list', 'after_sales',
+      'settings_warranty',
+    ],
+  };
+  for (const [role, keys] of Object.entries(roleMenuDefaults)) {
+    await prisma.sys_role_menu.upsert({
+      where: { role },
+      update: { menu_keys: JSON.stringify(keys) },
+      create: { role, menu_keys: JSON.stringify(keys) },
+    });
+  }
+  console.log('✓ 角色菜单权限创建完成');
+
   console.log('种子数据填充完毕!');
 }
 

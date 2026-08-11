@@ -14,6 +14,7 @@ export interface LoginResult {
     role: 'super_admin' | 'store_admin' | 'operator'
     storeId: number | null
     storeName: string | null
+    menuKeys?: string[]
   }
   stores: Array<{ id: number; name: string; code: string }>
 }
@@ -29,6 +30,7 @@ export async function login(data: LoginData): Promise<LoginResult> {
       role: res.data.userInfo.role,
       storeId: res.data.userInfo.storeId,
       storeName: res.data.userInfo.storeName || null,
+      menuKeys: res.data.userInfo.menuKeys || [],
     },
     stores: res.data.stores || [],
   }
@@ -43,6 +45,7 @@ export async function getUserInfo(): Promise<LoginResult['user']> {
     role: res.data.role,
     storeId: res.data.store_id,
     storeName: res.data.store?.name || null,
+    menuKeys: res.data.menuKeys || [],
   }
 }
 

@@ -14,12 +14,12 @@
         active-text-color="#ffffff"
         router
       >
-        <el-menu-item index="/dashboard">
+        <el-menu-item index="/dashboard" v-if="userStore.hasPerm('dashboard')">
           <el-icon><DataBoard /></el-icon>
           <template #title>数据看板</template>
         </el-menu-item>
 
-        <el-sub-menu index="store" v-if="userStore.isSuperAdmin">
+        <el-sub-menu index="store" v-if="userStore.hasPerm('store_list')">
           <template #title>
             <el-icon><Shop /></el-icon>
             <span>门店管理</span>
@@ -27,29 +27,29 @@
           <el-menu-item index="/store/list">门店列表</el-menu-item>
         </el-sub-menu>
 
-        <el-menu-item index="/product/brand-model">
+        <el-menu-item index="/product/brand-model" v-if="userStore.hasPerm('product_brand')">
           <el-icon><Goods /></el-icon>
           <template #title>品牌型号管理</template>
         </el-menu-item>
 
-        <el-sub-menu index="purchase">
+        <el-sub-menu index="purchase" v-if="userStore.hasAnyPerm(['purchase_entry', 'purchase_supplier'])">
           <template #title>
             <el-icon><Download /></el-icon>
             <span>采购管理</span>
           </template>
-          <el-menu-item index="/purchase/supplier">供应商管理</el-menu-item>
-          <el-menu-item index="/purchase/entry/list">入库管理</el-menu-item>
+          <el-menu-item index="/purchase/supplier" v-if="userStore.hasPerm('purchase_supplier')">供应商管理</el-menu-item>
+          <el-menu-item index="/purchase/entry/list" v-if="userStore.hasPerm('purchase_entry')">入库管理</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="inventory">
+        <el-sub-menu index="inventory" v-if="userStore.hasAnyPerm(['inventory_list', 'inventory_initial', 'inventory_logs'])">
           <template #title>
             <el-icon><Coin /></el-icon>
             <span>库存管理</span>
           </template>
-          <el-menu-item index="/inventory">库存查询</el-menu-item>
-          <el-menu-item index="/inventory/initial" v-if="userStore.isSuperAdmin || userStore.userInfo?.role === 'store_admin'">期初库存</el-menu-item>
+          <el-menu-item index="/inventory" v-if="userStore.hasPerm('inventory_list')">库存查询</el-menu-item>
+          <el-menu-item index="/inventory/initial" v-if="userStore.hasPerm('inventory_initial')">期初库存</el-menu-item>
           <!-- <el-menu-item index="/inventory/check">库存盘点</el-menu-item> -->
-          <el-menu-item index="/inventory/logs">库存流水</el-menu-item>
+          <el-menu-item index="/inventory/logs" v-if="userStore.hasPerm('inventory_logs')">库存流水</el-menu-item>
         </el-sub-menu>
 
         <!-- <el-sub-menu index="transfer">
@@ -61,31 +61,36 @@
           <el-menu-item index="/transfer/list">调货记录</el-menu-item>
         </el-sub-menu> -->
 
-        <el-sub-menu index="sales">
+        <el-sub-menu index="sales" v-if="userStore.hasAnyPerm(['sales_new', 'sales_list'])">
           <template #title>
             <el-icon><ShoppingCart /></el-icon>
             <span>销售管理</span>
           </template>
-          <el-menu-item index="/sales/new">销售开单</el-menu-item>
-          <el-menu-item index="/sales/list">销售记录</el-menu-item>
+          <el-menu-item index="/sales/new" v-if="userStore.hasPerm('sales_new')">销售开单</el-menu-item>
+          <el-menu-item index="/sales/list" v-if="userStore.hasPerm('sales_list')">销售记录</el-menu-item>
         </el-sub-menu>
 
-        <el-menu-item index="/tools">
+        <el-menu-item index="/tools" v-if="userStore.hasPerm('tools')">
           <el-icon><Tools /></el-icon>
           <template #title>数据工具</template>
         </el-menu-item>
 
-        <el-menu-item index="/after-sales/list">
+        <el-menu-item index="/after-sales/list" v-if="userStore.hasPerm('after_sales')">
           <el-icon><ChatDotSquare /></el-icon>
           <template #title>售后管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/system/user" v-if="userStore.isSuperAdmin || userStore.userInfo?.role === 'store_admin'">
+        <el-menu-item index="/system/user" v-if="userStore.hasPerm('system_user')">
           <el-icon><User /></el-icon>
           <template #title>用户管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/settings/warranty">
+        <el-menu-item index="/system/permission" v-if="userStore.hasPerm('system_permission')">
+          <el-icon><Lock /></el-icon>
+          <template #title>权限管理</template>
+        </el-menu-item>
+
+        <el-menu-item index="/settings/warranty" v-if="userStore.hasPerm('settings_warranty')">
           <el-icon><Document /></el-icon>
           <template #title>保修设置</template>
         </el-menu-item>

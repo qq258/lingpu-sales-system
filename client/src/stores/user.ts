@@ -25,8 +25,11 @@ export const useUserStore = defineStore('user', () => {
   } | null>(null)
   const currentStoreId = ref<number | null>(getStoredStoreId())
   const availableStores = ref<Array<{ id: number; name: string; code: string }>>([])
+  const menuPerms = ref<string[]>([])
 
   const isSuperAdmin = computed(() => userInfo.value?.role === 'super_admin')
+  const hasPerm = (key: string) => menuPerms.value.includes(key)
+  const hasAnyPerm = (keys: string[]) => keys.some(k => menuPerms.value.includes(k))
   const effectiveStoreId = computed(() => {
     if (isSuperAdmin.value) {
       return currentStoreId.value
@@ -47,6 +50,7 @@ export const useUserStore = defineStore('user', () => {
     const result = await loginApi(loginData)
     token.value = result.token
     userInfo.value = result.user
+    menuPerms.value = result.user.menuKeys || []
     localStorage.setItem('token', result.token)
     availableStores.value = result.stores
     if (loginData.storeId) {
@@ -62,6 +66,7 @@ export const useUserStore = defineStore('user', () => {
   function logout() {
     token.value = null
     userInfo.value = null
+    menuPerms.value = []
     currentStoreId.value = null
     availableStores.value = []
     localStorage.removeItem('token')
@@ -73,6 +78,7 @@ export const useUserStore = defineStore('user', () => {
     try {
       const info = await getUserInfo()
       userInfo.value = info
+      menuPerms.value = info.menuKeys || []
       if (info.storeId && !currentStoreId.value) {
         currentStoreId.value = info.storeId
       }
@@ -114,7 +120,10 @@ export const useUserStore = defineStore('user', () => {
     userInfo,
     currentStoreId,
     availableStores,
+    menuPerms,
     isSuperAdmin,
+    hasPerm,
+    hasAnyPerm,
     effectiveStoreId,
     isAllStores,
     currentStoreName,
