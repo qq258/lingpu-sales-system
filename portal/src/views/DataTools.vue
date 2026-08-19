@@ -238,12 +238,24 @@ async function handleRestore(row: BackupNode) {
       '还原确认',
       { confirmButtonText: '确认还原', cancelButtonText: '取消', type: 'warning' },
     )
-    const res = await restoreFromNode(row.name)
-    ElMessage.success(res?.message || '还原成功')
+    await showRestoreResult(await restoreFromNode(row.name))
     await loadBackupNodes()
   } catch (e: any) {
     if (e === 'cancel' || e?.action === 'cancel') return
     ElMessage.error(e?.response?.data?.message || e?.message || '还原失败')
+  }
+}
+
+// 展示还原结果，并列出表结构差异等提示信息
+async function showRestoreResult(res: any) {
+  ElMessage.success(res?.message || '还原成功')
+  const warnings: string[] = res?.data?.warnings || []
+  if (warnings.length) {
+    await ElMessageBox.alert(
+      warnings.map((w) => `<div style="margin:2px 0;font-size:13px;">· ${w}</div>`).join(''),
+      '还原完成，有以下提示',
+      { dangerouslyUseHTMLString: true, confirmButtonText: '知道了' },
+    ).catch(() => {})
   }
 }
 
@@ -272,8 +284,7 @@ async function handleRestoreFile() {
       '还原确认',
       { confirmButtonText: '确认还原', cancelButtonText: '取消', type: 'warning' },
     )
-    const res = await restoreFromFile(restoreFile.value)
-    ElMessage.success(res?.message || '还原成功')
+    await showRestoreResult(await restoreFromFile(restoreFile.value))
     resetRestoreFile()
     await loadBackupNodes()
   } catch (e: any) {

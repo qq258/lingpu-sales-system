@@ -75,10 +75,10 @@
           <template #title>数据工具</template>
         </el-menu-item>
 
-        <el-menu-item index="/after-sales/list" v-if="userStore.hasPerm('after_sales')">
+        <!-- <el-menu-item index="/after-sales/list" v-if="userStore.hasPerm('after_sales')">
           <el-icon><ChatDotSquare /></el-icon>
           <template #title>售后管理</template>
-        </el-menu-item>
+        </el-menu-item> -->
 
         <el-menu-item index="/system/user" v-if="userStore.hasPerm('system_user')">
           <el-icon><User /></el-icon>

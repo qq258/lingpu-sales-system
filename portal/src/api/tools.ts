@@ -49,7 +49,7 @@ export async function deleteBackupNode(name: string) {
 // 快速还原（从备份节点）
 export async function restoreFromNode(name: string) {
   const res: any = await request.post('/tools/restore', { name })
-  return res.data
+  return res
 }
 
 // 快速还原（上传备份文件）
@@ -59,7 +59,7 @@ export async function restoreFromFile(file: File) {
   const res: any = await request.post('/tools/restore', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
-  return res.data
+  return res
 }
 
 // 按表导出 Excel

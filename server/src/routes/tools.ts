@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import prisma from '../utils/prisma';
+import { PrismaClient } from '@prisma/client';
 import { ApiResponse } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import * as XLSX from 'xlsx';
@@ -178,9 +179,10 @@ router.delete('/backup/:name', async (req: Request, res: Response) => {
 });
 
 // 快速还原：支持从备份节点还原（body: { name }）或上传 .sqlite 文件还原
+// 按表同步数据（容忍表结构差异）：仅同步源/目标两侧都存在的列，缺表清空，多表忽略
 router.post('/restore', upload.single('file'), async (req: Request, res: Response) => {
+  let sourcePath: string | null = null;
   try {
-    let sourcePath: string | null = null;
     if (req.file) {
       sourcePath = req.file.path;
     } else {
@@ -214,21 +216,122 @@ router.post('/restore', upload.single('file'), async (req: Request, res: Respons
     const safetyBackup = BACKUP_PREFIX + 'auto.' + stamp();
     fs.copyFileSync(dbPath, path.join(dataDirPath(), safetyBackup));
 
-    // 断开连接 → 原子替换 → 重连（node 单线程，期间无其他请求）
-    await prisma.$disconnect();
+    // 在临时副本上执行同步，成功后原子替换；失败则删除副本，当前库不受影响
+    const syncTmp = path.join(dataDirPath(), '.restore-sync.sqlite');
+    fs.copyFileSync(dbPath, syncTmp);
+
+    const warnings: string[] = [];
+    const syncClient = new PrismaClient({
+      datasources: { db: { url: `file:${syncTmp}` } },
+    });
+
+    let synced = 0;
     try {
-      const tmp = path.join(dataDirPath(), '.restore-tmp.sqlite');
-      fs.copyFileSync(sourcePath, tmp);
-      fs.renameSync(tmp, dbPath);
-    } finally {
-      await prisma.$connect();
+      await syncClient.$connect();
+      await syncClient.$executeRawUnsafe(
+        `ATTACH DATABASE '${String(sourcePath).replace(/'/g, "''")}' AS src;`
+      );
+      await syncClient.$executeRawUnsafe('PRAGMA foreign_keys = OFF;');
+
+      const targetTables = await syncClient.$queryRawUnsafe<{ name: string }[]>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != '_prisma_migrations' ORDER BY name`
+      );
+      const srcRows = await syncClient.$queryRawUnsafe<{ name: string }[]>(
+        `SELECT name FROM src.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != '_prisma_migrations'`
+      );
+      const srcTables = new Set(srcRows.map((t) => t.name));
+
+      for (const { name } of targetTables) {
+        try {
+          const tCols = await syncClient.$queryRawUnsafe<{ name: string }[]>(
+            `PRAGMA table_info("${name}")`
+          );
+          const tColNames = tCols.map((c) => c.name);
+
+          if (!srcTables.has(name)) {
+            await syncClient.$executeRawUnsafe(`DELETE FROM "${name}";`);
+            warnings.push(`表 ${name}: 源库中不存在，已清空`);
+            continue;
+          }
+
+          const sCols = await syncClient.$queryRawUnsafe<{ name: string }[]>(
+            `PRAGMA src.table_info("${name}")`
+          );
+          const sColNames = new Set(sCols.map((c) => c.name));
+          const common = tColNames.filter((c) => sColNames.has(c));
+
+          await syncClient.$executeRawUnsafe(`DELETE FROM "${name}";`);
+          if (common.length === 0) {
+            warnings.push(`表 ${name}: 与源库无公共列，已清空`);
+            continue;
+          }
+
+          const colsSql = common.map((c) => `"${c.replace(/"/g, '""')}"`).join(',');
+          await syncClient.$executeRawUnsafe(
+            `INSERT INTO "${name}" (${colsSql}) SELECT ${colsSql} FROM "src"."${name}";`
+          );
+          synced++;
+          const lost = tColNames.length - common.length;
+          if (lost > 0) {
+            warnings.push(`表 ${name}: 已同步 ${common.length} 列，跳过 ${lost} 列（当前库新增列，源库中不存在）`);
+          }
+        } catch (e: any) {
+          warnings.push(`表 ${name}: 同步失败 - ${e.message}`);
+        }
+      }
+
+      // 源库多出的表（当前库结构中不存在）直接忽略
+      for (const name of srcTables) {
+        if (!targetTables.some((t) => t.name === name)) {
+          warnings.push(`表 ${name}: 仅存在于源库，已忽略`);
+        }
+      }
+
+      // 重置自增序列（防止清空后 ID 跳号）
+      try {
+        await syncClient.$executeRawUnsafe('DELETE FROM sqlite_sequence;');
+        const seqTables = await syncClient.$queryRawUnsafe<{ name: string }[]>(
+          `SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%AUTOINCREMENT%'`
+        );
+        for (const { name } of seqTables) {
+          try {
+            await syncClient.$executeRawUnsafe(
+              `INSERT INTO sqlite_sequence(name, seq) SELECT '${name}', COALESCE(MAX(id), 0) FROM "${name}";`
+            );
+          } catch { /* 无 id 列等异常忽略 */ }
+        }
+      } catch { /* sqlite_sequence 不存在则跳过 */ }
+
+      await syncClient.$executeRawUnsafe('VACUUM;');
+      await syncClient.$executeRawUnsafe('PRAGMA foreign_keys = ON;');
+      await syncClient.$executeRawUnsafe('DETACH DATABASE src;');
+      await syncClient.$disconnect();
+
+      // 原子替换：断开连接 → 重命名 → 重连（node 单线程，期间无其他请求）
+      await prisma.$disconnect();
+      try {
+        fs.renameSync(syncTmp, dbPath);
+      } finally {
+        await prisma.$connect();
+      }
+
+      if (req.file) fs.unlink(sourcePath, () => {});
+
+      const r: ApiResponse = {
+        code: 200,
+        message: `还原成功（已同步 ${synced} 张表${warnings.length ? `，${warnings.length} 条提示` : ''}，并自动备份还原前的数据库）`,
+        data: { safety_backup: safetyBackup, warnings },
+      };
+      return res.json(r);
+    } catch (e: any) {
+      await syncClient.$disconnect().catch(() => {});
+      try { fs.unlinkSync(syncTmp); } catch {}
+      if (req.file) fs.unlink(sourcePath, () => {});
+      const r: ApiResponse = { code: 500, message: `同步失败：${e.message}（当前数据库未受影响）` };
+      return res.status(500).json(r);
     }
-
-    if (req.file) fs.unlink(sourcePath, () => {});
-
-    const r: ApiResponse = { code: 200, message: '还原成功（已自动备份还原前的数据库）', data: { safety_backup: safetyBackup } };
-    return res.json(r);
   } catch (err: any) {
+    if (req.file && sourcePath) fs.unlink(sourcePath, () => {});
     const r: ApiResponse = { code: 500, message: err.message };
     return res.status(500).json(r);
   }

@@ -2,22 +2,36 @@
  * 清空业务数据（保留 sys_user / sys_store）
  *
  * 用法:
- *   node scripts/clear-business-data.js           # 清空（自动备份）
- *   node scripts/clear-business-data.js --dry-run  # 只打印计划，不执行
+ *   node scripts/clear-business-data.js [--db <sqlite路径>] [--dry-run]
+ *
+ *   --db <路径>: 指定要清空的数据库文件（默认 server/data/database.sqlite）
+ *   --dry-run :  只打印计划，不执行
  */
 const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const fs = require('fs');
 
+const dryRun = process.argv.includes('--dry-run');
+const dbArgIndex = process.argv.indexOf('--db');
+const dbArg = dbArgIndex >= 0 && process.argv[dbArgIndex + 1] ? process.argv[dbArgIndex + 1] : null;
+const dbPath = dbArg
+  ? path.resolve(process.cwd(), dbArg)
+  : path.resolve(__dirname, '../data/database.sqlite');
+
+if (!fs.existsSync(dbPath)) {
+  console.error(`数据库文件不存在: ${dbPath}`);
+  process.exit(1);
+}
+
+console.log(`目标数据库: ${dbPath}`);
+
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: `file:${path.resolve(__dirname, '../data/database.sqlite')}`,
+      url: `file:${dbPath}`,
     },
   },
 });
-
-const dryRun = process.argv.includes('--dry-run');
 
 // 按依赖顺序排列：先删子表，再删父表
 const TABLES_TO_CLEAR = [
@@ -56,9 +70,8 @@ async function main() {
 
   // 1. 备份
   if (!dryRun) {
-    const srcDb = path.resolve(__dirname, '../data/database.sqlite');
-    const backup = srcDb + `.backup.${Date.now()}`;
-    fs.copyFileSync(srcDb, backup);
+    const backup = dbPath + `.backup.${Date.now()}`;
+    fs.copyFileSync(dbPath, backup);
     console.log('[1/3] 已备份: ' + backup + '\n');
   }
 

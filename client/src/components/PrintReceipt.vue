@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="小票预览" width="420px" top="5vh" destroy-on-close>
+  <el-dialog v-model="visible" title="小票预览 (A5 横向)" width="900px" top="5vh" destroy-on-close>
     <div class="receipt" ref="receiptRef">
       <!-- 店铺信息 -->
       <div class="receipt-header">
@@ -153,7 +153,7 @@ function handlePrint() {
     ? `<div class="receipt-divider"></div><div class="receipt-warranty">${warrantyContent.value}</div>`
     : ''
 
-  const printWindow = window.open('', '_blank', 'width=520,height=760')
+  const printWindow = window.open('', '_blank', 'width=860,height=660')
   if (!printWindow) {
     ElMessage.error('请允许弹出窗口以打印小票')
     return
@@ -162,10 +162,10 @@ function handlePrint() {
   printWindow.document.write(`
     <html>
     <head>
-      <title>小票打印</title>
+      <title>小票打印 (A5 横向)</title>
       <style>
-        @page { size: A5 portrait; margin: 8mm; }
-        body { font-family: 'Courier New', monospace; font-size: 13px; padding: 0; max-width: 132mm; margin: 0 auto; background: #fff; }
+        @page { size: A5 landscape; margin: 8mm; }
+        body { font-family: 'Courier New', monospace; font-size: 13px; padding: 0; max-width: 194mm; margin: 0 auto; background: #fff; }
         .receipt-header { text-align: center; margin-bottom: 8px; }
         .receipt-header h3 { margin: 0; font-size: 17px; }
         .receipt-addr, .receipt-tel { margin: 2px 0 0; font-size: 12px; color: #555; }
@@ -240,8 +240,13 @@ defineExpose({ open })
 <style scoped>
 .receipt {
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 13px;
   color: #333;
+  max-width: 194mm;
+  margin: 0 auto;
+  padding: 6mm 0;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
 .receipt-header {
   text-align: center;
