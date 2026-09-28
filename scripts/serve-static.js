@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = parseInt(process.argv[2] || process.env.PORT || '8080', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 const ROOT_DIR = path.resolve(process.argv[3] || process.cwd());
 const API_TARGET = process.env.API_TARGET || 'http://localhost:3000';
 
@@ -114,8 +115,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Static server running at http://0.0.0.0:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Static server running at http://${HOST}:${PORT}`);
   console.log(`Serving directory: ${ROOT_DIR}`);
   console.log(`API proxy: /api/* -> ${API_TARGET}`);
 });

@@ -10,7 +10,7 @@ export async function getSaleDetail(id: number) {
   return res.data
 }
 
-export async function createSale(data: { items: Array<{ imei: string; unit_price: number; imei2?: string | null; sn_code?: string | null }>; actual_amount: number; customer_name?: string; customer_phone?: string; customer_address?: string; remark?: string; change_amount?: number; total_amount?: number }) {
+export async function createSale(data: { items: Array<{ imei: string; unit_price: number; imei2?: string | null; sn_code?: string | null }>; actual_amount: number; payment_method?: string; customer_name?: string; customer_phone?: string; customer_address?: string; remark?: string; change_amount?: number; total_amount?: number }) {
   const res: any = await request.post('/sales/sales', data)
   return res.data
 }
@@ -33,6 +33,7 @@ export async function createNoStockSale(data: {
     unit_price: number
   }>
   actual_amount: number
+  payment_method?: string
   customer_name?: string
   customer_phone?: string
   customer_address?: string

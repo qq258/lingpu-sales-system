@@ -12,7 +12,7 @@
       <!-- 单号 & 时间 -->
       <div class="receipt-info">
         <div class="info-row"><span>单号</span><span>{{ data?.orderNo }}</span></div>
-        <div class="info-row"><span>日期</span><span>{{ data?.createdAt }}</span></div>
+        <div class="info-row"><span>日期</span><span>{{ formatChinaDateTime(data?.createdAt) }}</span></div>
         <div class="info-row"><span>收银员</span><span>{{ data?.cashier }}</span></div>
       </div>
 
@@ -77,6 +77,7 @@
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
+import { formatChinaDateTime } from '@/utils/date-time'
 
 const props = defineProps<{
   data: {
@@ -205,7 +206,7 @@ function handlePrint() {
         <div class="receipt-divider"></div>
         <div class="receipt-info">
           <div class="info-row"><span>单号</span><span>${props.data?.orderNo || ''}</span></div>
-          <div class="info-row"><span>日期</span><span>${props.data?.createdAt || ''}</span></div>
+          <div class="info-row"><span>日期</span><span>${formatChinaDateTime(props.data?.createdAt)}</span></div>
           <div class="info-row"><span>收银员</span><span>${props.data?.cashier || ''}</span></div>
         </div>
         ${customerHtml}

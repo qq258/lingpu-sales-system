@@ -108,6 +108,11 @@
             <el-form-item label="实收金额" required>
               <el-input-number v-model="settlement.paidAmount" :min="0" :precision="2" size="large" controls-position="right" style="width:200px;" @change="onPaidChange" />
             </el-form-item>
+            <el-form-item label="支付方式" required>
+              <el-select v-model="settlement.paymentMethod" style="width:200px;">
+                <el-option v-for="method in paymentMethods" :key="method" :label="method" :value="method" />
+              </el-select>
+            </el-form-item>
             <el-form-item label="找零" v-if="changeAmount > 0">
               <span class="pbm-change-amount">¥{{ changeAmount.toFixed(2) }}</span>
             </el-form-item>
@@ -199,11 +204,13 @@ const cartItems = ref<Array<{
 
 const settlement = ref({
   paidAmount: 0,
+  paymentMethod: '现金',
   customerName: '',
   customerAddress: '',
   customerPhone: '',
   remark: '',
 })
+const paymentMethods = ['现金', '微信', '支付宝', '银行卡', '其他']
 
 const paidAmountAuto = ref(true)
 const lastSaleData = ref<any>(null)
@@ -330,6 +337,7 @@ async function handleCheckout() {
         sn_code: i.snCode || null,
       })),
       actual_amount: settlement.value.paidAmount,
+      payment_method: settlement.value.paymentMethod,
       customer_name: settlement.value.customerName || undefined,
       customer_address: settlement.value.customerAddress || undefined,
       customer_phone: settlement.value.customerPhone || undefined,
@@ -376,7 +384,7 @@ async function handleCheckout() {
 
 function resetAll() {
   cartItems.value = []
-  settlement.value = { paidAmount: 0, customerName: '', customerAddress: '', customerPhone: '', remark: '' }
+  settlement.value = { paidAmount: 0, paymentMethod: '现金', customerName: '', customerAddress: '', customerPhone: '', remark: '' }
   paidAmountAuto.value = true
   scanInput.value = ''
   matchedItem.value = null

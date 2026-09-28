@@ -1,0 +1,20 @@
+[Unit]
+Description=Lingpu Sales System API
+After=network.target
+
+[Service]
+Type=simple
+User=software
+Group=software
+WorkingDirectory=/home/software/lingpu-sales-system/server
+EnvironmentFile=/etc/lingpu-sales-system.env
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+ExecStart=/usr/bin/node /home/software/lingpu-sales-system/server/dist/index.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

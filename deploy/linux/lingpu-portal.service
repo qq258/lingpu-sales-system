@@ -1,0 +1,19 @@
+[Unit]
+Description=Lingpu Sales System Portal
+After=network.target lingpu-server.service
+
+[Service]
+Type=simple
+User=software
+Group=software
+WorkingDirectory=/home/software/lingpu-sales-system
+Environment=HOST=127.0.0.1
+Environment=API_TARGET=http://127.0.0.1:3000
+ExecStart=/usr/bin/node /home/software/lingpu-sales-system/scripts/serve-static.js 5174 /home/software/lingpu-sales-system/portal/dist
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -118,6 +118,13 @@
       </div>
 
       <div class="settle-row">
+        <span class="settle-label">支付方式</span>
+        <el-select v-model="paymentMethod" size="large" style="width:200px;">
+          <el-option v-for="method in paymentMethods" :key="method" :label="method" :value="method" />
+        </el-select>
+      </div>
+
+      <div class="settle-row">
         <span class="settle-label">找零</span>
         <span :class="['change-value', changeAmount < 0 ? 'change-err' : '']">
           ¥{{ Math.abs(changeAmount).toFixed(2) }}{{ changeAmount < 0 ? ' (不足)' : '' }}
@@ -233,6 +240,8 @@ interface CartItem {
 
 const cart = ref<CartItem[]>([])
 const paidAmount = ref(0)
+const paymentMethod = ref('现金')
+const paymentMethods = ['现金', '微信', '支付宝', '银行卡', '其他']
 const customerName = ref('')
 const customerPhone = ref('')
 const customerAddress = ref('')
@@ -515,6 +524,7 @@ async function doNormalPay() {
     const result = await createSale({
       items: cart.value.map(i => ({ imei: i.imei, unit_price: i.price, imei2: i.imei2 || null, sn_code: i.snCode || null })),
       actual_amount: totalAmount.value,
+      payment_method: paymentMethod.value,
       customer_name: customerName.value || undefined,
       customer_phone: customerPhone.value || undefined,
       customer_address: customerAddress.value || undefined,
@@ -585,6 +595,7 @@ async function submitNoStockSale() {
         unit_price: i.price,
       })),
       actual_amount: totalAmount.value,
+      payment_method: paymentMethod.value,
       customer_name: customerName.value || undefined,
       customer_phone: customerPhone.value || undefined,
       customer_address: customerAddress.value || undefined,
@@ -613,6 +624,7 @@ async function submitNoStockSale() {
 function resetAll() {
   cart.value = []
   paidAmount.value = 0
+  paymentMethod.value = '现金'
   customerName.value = ''
   customerPhone.value = ''
   customerAddress.value = ''

@@ -28,6 +28,14 @@ function isApiError(err: any): err is ApiError {
   return err instanceof ApiError;
 }
 
+const PAYMENT_METHODS = ['现金', '微信', '支付宝', '银行卡', '其他'];
+
+function normalizePaymentMethod(value: unknown): string {
+  if (value == null || value === '') return '现金';
+  if (typeof value === 'string' && PAYMENT_METHODS.includes(value)) return value;
+  throw new ApiError('支付方式无效');
+}
+
 router.post('/sales/no-stock', async (req: Request, res: Response) => {
   try {
     const storeId = getStoreId(req);
@@ -37,6 +45,7 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
     }
 
     const { items, actual_amount, customer_name, customer_address, customer_phone, remark } = req.body;
+    const payment_method = normalizePaymentMethod(req.body.payment_method);
     if (!items || !Array.isArray(items) || items.length === 0) {
       const r: ApiResponse = { code: 400, message: '商品列表不能为空' };
       return res.status(400).json(r);
@@ -230,6 +239,7 @@ router.post('/sales/no-stock', async (req: Request, res: Response) => {
           unit_price: firstItem.unitPrice || 0,
           total_amount: totalAmount,
           actual_amount,
+          payment_method,
           change_amount: Math.max(0, actual_amount - totalAmount),
           customer_name,
           customer_address,
@@ -289,6 +299,7 @@ router.post('/sales', async (req: Request, res: Response) => {
     }
 
     const { items, actual_amount, customer_name, customer_address, customer_phone, remark } = req.body;
+    const payment_method = normalizePaymentMethod(req.body.payment_method);
     if (!items || !Array.isArray(items) || items.length === 0) {
       const r: ApiResponse = { code: 400, message: '商品列表不能为空' };
       return res.status(400).json(r);
@@ -376,6 +387,7 @@ router.post('/sales', async (req: Request, res: Response) => {
           unit_price: firstItem.unitPrice || 0,
           total_amount: totalAmount,
           actual_amount,
+          payment_method,
           change_amount: Math.max(0, actual_amount - totalAmount),
           customer_name,
           customer_address,
@@ -642,6 +654,7 @@ router.get('/sales/export', async (req: Request, res: Response) => {
       '单价': r.unit_price || 0,
       '应收': r.total_amount || 0,
       '实收': r.actual_amount || 0,
+      '支付方式': r.payment_method || '现金',
       '找零': r.change_amount || 0,
       '客户': r.customer_name || '',
       '客户电话': r.customer_phone || '',

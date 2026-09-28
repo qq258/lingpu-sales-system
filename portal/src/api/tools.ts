@@ -12,6 +12,11 @@ export interface BackupNode {
   created_at: string
 }
 
+export interface ClearBusinessDataResult {
+  backup_name: string
+  deleted: Record<string, number>
+}
+
 // 可操作的数据表列表
 export async function getTables(): Promise<TableInfo[]> {
   const res: any = await request.get('/tools/tables')
@@ -75,6 +80,12 @@ export async function importTable(tableKey: string, file: File): Promise<{ succe
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return res.data || { success: 0, errors: [] }
+}
+
+// 清空业务数据（服务端会先创建整库安全备份）
+export async function clearBusinessData(): Promise<ClearBusinessDataResult> {
+  const res: any = await request.post('/tools/clear-business-data')
+  return res.data
 }
 
 // 带鉴权头下载文件

@@ -130,7 +130,7 @@
 import { ref, watch, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { getSuppliers, checkImeiExists, quickConfirmPurchaseEntry } from '@/api/purchase'
+import { getSuppliers, createSupplier, checkImeiExists, quickConfirmPurchaseEntry } from '@/api/purchase'
 import { getBrands, getModels } from '@/api/product'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 

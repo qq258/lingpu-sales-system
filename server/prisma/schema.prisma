@@ -274,6 +274,7 @@ model sale_order {
   total_amount  Float?
   actual_amount Float
   change_amount Float?
+  payment_method String @default("现金")
   customer_name String?
   customer_address String?
   customer_phone  String?

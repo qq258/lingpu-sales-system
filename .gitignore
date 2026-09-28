@@ -9,3 +9,4 @@ data/database.sqlite
 .deploy-temp/
 .empty-delete/
 release/
+release-linux/

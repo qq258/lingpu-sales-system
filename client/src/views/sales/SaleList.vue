@@ -38,6 +38,9 @@
             <el-table-column label="实收" width="100" align="right">
               <template #default="{ row }">¥{{ (row.actual_amount || 0).toFixed(2) }}</template>
             </el-table-column>
+            <el-table-column prop="payment_method" label="支付方式" width="100" align="center">
+              <template #default="{ row }">{{ row.payment_method || '现金' }}</template>
+            </el-table-column>
             <el-table-column label="时间" width="120" align="center">
               <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
             </el-table-column>
@@ -79,6 +82,7 @@
         <el-descriptions-item label="客户">{{ detailData.customerName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="应收金额">¥{{ detailData.totalAmount?.toFixed(2) }}</el-descriptions-item>
         <el-descriptions-item label="实收金额">¥{{ detailData.paidAmount?.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="支付方式">{{ detailData.paymentMethod || '现金' }}</el-descriptions-item>
         <el-descriptions-item label="时间" :span="2">{{ detailData.createdAt }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
@@ -125,6 +129,7 @@ import { useUserStore } from '@/stores/user'
 import { getSales, getSale, getSalePrintData, deleteSale } from '@/api/sales'
 import PrintReceipt from '@/components/PrintReceipt.vue'
 import { exportWithQuery } from '@/api/tools'
+import { formatChinaDateTime } from '@/utils/date-time'
 
 const userStore = useUserStore()
 const printReceiptRef = ref()
@@ -187,7 +192,8 @@ async function showDetail(row: any) {
       customerName: d.customer_name || '',
       totalAmount: d.total_amount || 0,
       paidAmount: d.actual_amount || 0,
-      createdAt: d.created_at,
+      paymentMethod: d.payment_method || '现金',
+      createdAt: formatDateTime(d.created_at),
       remark: d.remark || '',
       items: (d.items || []).map((item: any) => ({
         modelId: item.model_id,
@@ -243,15 +249,7 @@ async function reprint(row: any) {
 }
 
 function formatDateTime(dateStr: string | Date): string {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const hours = String(d.getHours()).padStart(2, '0')
-  const mins = String(d.getMinutes()).padStart(2, '0')
-  const secs = String(d.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${mins}:${secs}`
+  return formatChinaDateTime(dateStr)
 }
 
 async function handleDelete(row: any) {

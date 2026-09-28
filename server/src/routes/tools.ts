@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import prisma from '../utils/prisma';
 import { PrismaClient } from '@prisma/client';
-import { ApiResponse } from '../types';
+import { ApiResponse, UserRole } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import * as XLSX from 'xlsx';
 import multer from 'multer';
@@ -96,6 +96,62 @@ function listBackupNodes(): Array<{ name: string; size: number; created_at: stri
 function isValidBackupName(name: string): boolean {
   return /^database\.sqlite\.backup\.[^/\\]+$/.test(name);
 }
+
+// 清空业务数据，保留门店、账号、角色菜单和系统设置
+router.post('/clear-business-data', async (req: Request, res: Response) => {
+  if (req.user?.role !== UserRole.SUPER_ADMIN) {
+    const r: ApiResponse = { code: 403, message: '仅超级管理员可以清空业务数据' };
+    return res.status(403).json(r);
+  }
+
+  let backupName = '';
+  try {
+    const dbPath = path.join(dataDirPath(), DB_FILE);
+    if (!fs.existsSync(dbPath)) {
+      const r: ApiResponse = { code: 404, message: '数据库文件不存在' };
+      return res.status(404).json(r);
+    }
+
+    // 清理前自动留存整库快照，允许通过现有还原功能恢复。
+    backupName = `${BACKUP_PREFIX}auto.clear.${stamp()}_${Date.now()}`;
+    fs.copyFileSync(dbPath, path.join(dataDirPath(), backupName));
+
+    const deleted = await prisma.$transaction(async (tx) => {
+      const counts: Record<string, number> = {};
+      counts.after_sale_logs = (await tx.after_sale_log.deleteMany()).count;
+      counts.after_sales = (await tx.after_sale_order.deleteMany()).count;
+      counts.sale_items = (await tx.sale_order_item.deleteMany()).count;
+      counts.sales = (await tx.sale_order.deleteMany()).count;
+      counts.purchase_items = (await tx.pch_purchase_item.deleteMany()).count;
+      counts.purchase_entries = (await tx.pch_purchase_entry.deleteMany()).count;
+      counts.inventory_check_items = (await tx.wh_inventory_check_item.deleteMany()).count;
+      counts.inventory_checks = (await tx.wh_inventory_check.deleteMany()).count;
+      counts.transfers = (await tx.wh_transfer.deleteMany()).count;
+      counts.inventory_imeis = (await tx.wh_inventory_imei.deleteMany()).count;
+      counts.inventory_logs = (await tx.wh_inventory_log.deleteMany()).count;
+      counts.inventory = (await tx.wh_inventory.deleteMany()).count;
+      counts.operation_logs = (await tx.sys_operation_log.deleteMany()).count;
+      counts.suppliers = (await tx.pch_supplier.deleteMany()).count;
+      counts.models = (await tx.pdt_model.deleteMany()).count;
+      counts.brands = (await tx.pdt_brand.deleteMany()).count;
+      return counts;
+    });
+
+    const total = Object.values(deleted).reduce((sum, count) => sum + count, 0);
+    const r: ApiResponse = {
+      code: 200,
+      message: `业务数据已清空，共删除 ${total} 条记录；清理前备份已创建`,
+      data: { backup_name: backupName, deleted },
+    };
+    return res.json(r);
+  } catch (err: any) {
+    const r: ApiResponse = {
+      code: 500,
+      message: `清理失败：${err.message}${backupName ? `；清理前备份：${backupName}` : ''}`,
+    };
+    return res.status(500).json(r);
+  }
+});
 
 // 备份节点列表
 router.get('/backup', async (_req: Request, res: Response) => {
@@ -401,6 +457,7 @@ router.get('/export/:table', async (req: Request, res: Response) => {
           '单价': r.unit_price || 0,
           '应收': r.total_amount || 0,
           '实收': r.actual_amount || 0,
+          '支付方式': r.payment_method || '现金',
           '客户': r.customer_name || '',
           '收银员': r.operator?.real_name || '',
           '时间': formatDate(r.created_at),

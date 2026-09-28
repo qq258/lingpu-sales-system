@@ -147,6 +147,12 @@
             <el-input-number v-model="paidAmount" :min="0" :precision="2" size="large" controls-position="right" style="width:180px;" />
           </div>
           <div class="checkout-row">
+            <span class="checkout-label">支付方式</span>
+            <el-select v-model="paymentMethod" size="large" style="width:180px;">
+              <el-option v-for="method in paymentMethods" :key="method" :label="method" :value="method" />
+            </el-select>
+          </div>
+          <div class="checkout-row">
             <span class="checkout-label">找零</span>
             <span :class="['checkout-change', changeAmount < 0 ? 'change-err' : '']">¥{{ Math.abs(changeAmount).toFixed(2) }}{{ changeAmount < 0 ? ' (不足)' : '' }}</span>
           </div>
@@ -489,6 +495,8 @@ const scanning = ref(false)
 const scanError = ref('')
 const cart = ref<Array<{ brandName: string; modelName: string; color?: string; storage?: string; imei: string; imei2?: string | null; snCode?: string | null; price: number; modelId?: number | null; rawText?: string; brandText?: string; modelText?: string }>>([])
 const paidAmount = ref(0)
+const paymentMethod = ref('现金')
+const paymentMethods = ['现金', '微信', '支付宝', '银行卡', '其他']
 const customerName = ref('')
 const customerPhone = ref('')
 const customerAddress = ref('')
@@ -912,6 +920,7 @@ async function doNormalPay() {
     const result = await createSale({
       items: cart.value.map(i => ({ imei: i.imei, unit_price: i.price, imei2: i.imei2 || null, sn_code: i.snCode || null })),
       actual_amount: paidAmount.value,
+      payment_method: paymentMethod.value,
       total_amount: totalAmount.value,
       change_amount: paidAmount.value - totalAmount.value,
       customer_name: customerName.value || undefined,
@@ -985,6 +994,7 @@ async function submitNoStockSale() {
         unit_price: i.price,
       })),
       actual_amount: paidAmount.value,
+      payment_method: paymentMethod.value,
       total_amount: totalAmount.value,
       change_amount: paidAmount.value - totalAmount.value,
       customer_name: customerName.value || undefined,
@@ -1010,6 +1020,7 @@ async function submitNoStockSale() {
 function resetCart() {
   cart.value = []
   paidAmount.value = 0
+  paymentMethod.value = '现金'
   customerName.value = ''
   customerPhone.value = ''
   customerAddress.value = ''

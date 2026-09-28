@@ -19,6 +19,7 @@ import settingsRoutes from './routes/settings';
 import permissionRoutes from './routes/permissions';
 
 const app = express();
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors({
   origin: '*',
@@ -57,13 +58,24 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
-  prisma.$connect().then(() => {
-    console.log('Database connected');
-  }).catch((err) => {
-    console.error('Database connection failed:', err);
-  });
-});
+async function startServer() {
+  try {
+    await prisma.$connect();
+    const saleOrderColumns = await prisma.$queryRawUnsafe<Array<{ name: string }>>('PRAGMA table_info("sale_order")');
+    if (!saleOrderColumns.some((column) => column.name === 'payment_method')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE "sale_order" ADD COLUMN "payment_method" TEXT NOT NULL DEFAULT \'现金\'');
+      console.log('Database schema updated: sale_order.payment_method');
+    }
+    app.listen(PORT, HOST, () => {
+      console.log(`Server running on http://${HOST}:${PORT}`);
+      console.log('Database connected');
+    });
+  } catch (err) {
+    console.error('Database initialization failed:', err);
+    process.exit(1);
+  }
+}
+
+void startServer();
 
 export default app;

@@ -10,7 +10,7 @@
 
       <div class="receipt-info">
         <div class="info-row"><span>单号</span><span>{{ data?.order_no || '' }}</span></div>
-        <div class="info-row"><span>日期</span><span>{{ formatTime(data?.created_at) }}</span></div>
+        <div class="info-row"><span>日期</span><span>{{ formatChinaDateTime(data?.created_at) }}</span></div>
         <div class="info-row"><span>收银员</span><span>{{ data?.operator?.real_name || '' }}</span></div>
       </div>
 
@@ -70,6 +70,7 @@
 import { ref, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/api/request'
+import { formatChinaDateTime } from '@/utils/date-time'
 
 const props = defineProps<{
   data: any
@@ -79,11 +80,6 @@ const props = defineProps<{
 const visible = ref(false)
 const receiptRef = ref<HTMLDivElement>()
 const warrantyContent = ref('')
-
-function formatTime(t: string) {
-  if (!t) return ''
-  return t.slice(0, 16).replace('T', ' ')
-}
 
 async function loadWarrantyNotice() {
   try {
@@ -191,7 +187,7 @@ function handlePrint() {
         <div class="receipt-divider"></div>
         <div class="receipt-info">
           <div class="info-row"><span>单号</span><span>${props.data.order_no || ''}</span></div>
-          <div class="info-row"><span>日期</span><span>${formatTime(props.data.created_at)}</span></div>
+          <div class="info-row"><span>日期</span><span>${formatChinaDateTime(props.data.created_at)}</span></div>
           <div class="info-row"><span>收银员</span><span>${props.data?.operator?.real_name || ''}</span></div>
         </div>
         ${customerHtml}

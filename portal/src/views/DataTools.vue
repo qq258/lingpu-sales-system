@@ -133,6 +133,38 @@
             </div>
           </div>
         </el-tab-pane>
+
+        <!-- 清理业务数据（仅超级管理员） -->
+        <el-tab-pane v-if="userStore.isSuperAdmin" label="清空业务数据" name="clear">
+          <div class="dt-tab-content">
+            <section class="dt-clear-card">
+              <div class="dt-clear-heading">
+                <span class="dt-clear-badge">超级管理员操作</span>
+                <h2>清空业务数据</h2>
+                <p>用于重新开始演示或清理旧业务记录。清理前会自动创建整库备份。</p>
+              </div>
+
+              <div class="dt-clear-columns">
+                <div class="dt-clear-list dt-clear-list--keep">
+                  <strong>会保留</strong>
+                  <span>账号及密码、门店信息、角色菜单权限、系统设置</span>
+                </div>
+                <div class="dt-clear-list dt-clear-list--delete">
+                  <strong>会清空</strong>
+                  <span>供应商、品牌型号、库存与 IMEI、采购入库、销售、调拨、盘点、售后及业务操作日志</span>
+                </div>
+              </div>
+
+              <div class="dt-clear-footer">
+                <span>此操作会清除所有门店的业务数据；如需恢复，可在“数据备份”中还原自动生成的备份节点。</span>
+                <button class="dt-btn-danger" :disabled="clearing" @click="handleClearBusinessData">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  {{ clearing ? '正在清理…' : '备份并清空业务数据' }}
+                </button>
+              </div>
+            </section>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -141,6 +173,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '@/stores/user'
 import {
   getTables,
   downloadBackup,
@@ -152,10 +185,12 @@ import {
   restoreFromFile,
   exportTable,
   importTable,
+  clearBusinessData,
   type BackupNode,
 } from '@/api/tools'
 
 const activeTab = ref('backup')
+const userStore = useUserStore()
 
 // ---- 备份节点 ----
 const backupNodes = ref<BackupNode[]>([])
@@ -172,6 +207,7 @@ const importFile = ref<File | null>(null)
 const importFileRef = ref<HTMLInputElement>()
 const importing = ref(false)
 const importResult = ref<{ msg: string; errors: string[] } | null>(null)
+const clearing = ref(false)
 
 // ---- 上传还原 ----
 const restoreFile = ref<File | null>(null)
@@ -339,6 +375,58 @@ async function handleImport() {
   }
 }
 
+async function handleClearBusinessData() {
+  if (clearing.value) return
+  clearing.value = true
+  try {
+    await ElMessageBox.confirm(
+      '将清空所有门店的供应商、品牌型号、库存与 IMEI、采购入库、销售、调拨、盘点、售后和业务操作日志。账号密码、门店、角色菜单权限及系统设置会保留。清理前系统会自动创建整库备份，是否继续？',
+      '确认清空业务数据',
+      {
+        confirmButtonText: '备份并清空',
+        cancelButtonText: '取消',
+        type: 'error',
+        distinguishCancelAndClose: true,
+      },
+    )
+
+    const result = await clearBusinessData()
+    const labels: Record<string, string> = {
+      after_sale_logs: '售后处理记录',
+      after_sales: '售后工单',
+      sale_items: '销售商品明细',
+      sales: '销售单',
+      purchase_items: '入库商品明细',
+      purchase_entries: '入库单',
+      inventory_check_items: '盘点明细',
+      inventory_checks: '盘点单',
+      transfers: '调拨单',
+      inventory_imeis: 'IMEI 记录',
+      inventory_logs: '库存流水',
+      inventory: '库存汇总',
+      operation_logs: '业务操作日志',
+      suppliers: '供应商',
+      models: '型号',
+      brands: '品牌',
+    }
+    const deletedDetails = Object.entries(result.deleted)
+      .filter(([, count]) => count > 0)
+      .map(([key, count]) => `${labels[key] || key}：${count} 条`)
+    await loadTables()
+    await loadBackupNodes()
+    await ElMessageBox.alert(
+      `清理前备份：${result.backup_name}\n${deletedDetails.length ? deletedDetails.join('、') : '没有业务记录需要删除'}\n\n账号密码、门店、角色菜单权限和系统设置已保留。`,
+      '清理完成',
+      { confirmButtonText: '知道了' },
+    )
+  } catch (e: any) {
+    if (e === 'cancel' || e === 'close' || e?.action === 'cancel' || e?.action === 'close') return
+    ElMessage.error(e?.response?.data?.message || e?.message || '清空业务数据失败')
+  } finally {
+    clearing.value = false
+  }
+}
+
 // ---- 工具函数 ----
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B'
@@ -401,4 +489,27 @@ onMounted(() => {
 .dt-import-summary.is-warn { color: #b45309; }
 .dt-import-errors { margin-top: 8px; max-height: 180px; overflow-y: auto; }
 .dt-import-error { font-size: 12px; color: var(--danger); font-family: monospace; padding: 2px 0; }
+
+.dt-clear-card { padding: 24px; border: 1px solid rgba(220, 38, 38, 0.2); border-radius: var(--radius); background: linear-gradient(135deg, rgba(254, 242, 242, 0.72), rgba(255, 255, 255, 0.9)); }
+.dt-clear-heading h2 { margin: 10px 0 6px; color: var(--text); font-size: 18px; }
+.dt-clear-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.dt-clear-badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px; border-radius: 999px; background: rgba(220, 38, 38, 0.09); color: #b91c1c; font-size: 11px; font-weight: 700; }
+.dt-clear-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.dt-clear-list { display: flex; flex-direction: column; gap: 7px; padding: 14px 16px; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.8); }
+.dt-clear-list strong { font-size: 13px; }
+.dt-clear-list span { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.dt-clear-list--keep strong { color: #15803d; }
+.dt-clear-list--delete strong { color: #b91c1c; }
+.dt-clear-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; }
+.dt-clear-footer > span { max-width: 640px; color: var(--text-tertiary); font-size: 12px; line-height: 1.6; }
+.dt-btn-danger { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 14px; border: 0; border-radius: var(--radius-sm); background: #dc2626; color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); }
+.dt-btn-danger:hover { background: #b91c1c; }
+.dt-btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .dt-clear-card { padding: 18px; }
+  .dt-clear-columns { grid-template-columns: 1fr; }
+  .dt-clear-footer { align-items: stretch; flex-direction: column; }
+  .dt-btn-danger { width: 100%; }
+}
 </style>

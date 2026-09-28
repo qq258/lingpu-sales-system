@@ -3,7 +3,7 @@
     <div class="record-top">
       <div>
         <span class="record-no">{{ record.order_no || record.orderNo }}</span>
-        <span class="record-time">{{ formatTime(record.created_at || record.createdAt) }}</span>
+        <span class="record-time">{{ formatChinaDateTime(record.created_at || record.createdAt) }}</span>
       </div>
       <button class="record-print" @click="$emit('print', record)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>补打
@@ -12,19 +12,17 @@
     <div class="record-items">{{ record.model_name || record.modelName || '商品' }}<template v-if="record.quantity"> x{{ record.quantity }}</template></div>
     <div class="record-bottom">
       <span class="record-amount">¥{{ (record.actual_amount || record.actualAmount || 0).toFixed(2) }}</span>
+      <span class="record-payment">{{ record.payment_method || '现金' }}</span>
       <span class="record-customer" v-if="record.customer_name || record.customerName">{{ record.customer_name || record.customerName }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { formatChinaDateTime } from '@/utils/date-time'
 defineProps<{ record: any }>()
 defineEmits<{ print: [record: any] }>()
 
-function formatTime(t: string) {
-  if (!t) return ''
-  return t.slice(0, 16).replace('T', ' ')
-}
 </script>
 
 <style scoped>
@@ -38,5 +36,6 @@ function formatTime(t: string) {
 .record-items { font-size: 17px; color: var(--text); font-weight: 500; }
 .record-bottom { display: flex; align-items: center; gap: 16px; }
 .record-amount { font-size: 22px; font-weight: 700; color: var(--text); font-family: monospace; }
+.record-payment { padding: 3px 9px; border-radius: 999px; background: rgba(37,99,235,0.08); color: var(--primary); font-size: 12px; }
 .record-customer { font-size: 14px; color: var(--text-secondary); }
 </style>
