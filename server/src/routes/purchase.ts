@@ -511,6 +511,17 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
           throw new Error('型号和IMEI不能为空');
         }
 
+        // 交叉校验 IMEI1/IMEI2：禁止同一设备编号跨字段重复入库。
+        const primary = String(imei).trim();
+        const secondary = imei2 ? String(imei2).trim() : null;
+        if (secondary && primary === secondary) throw new Error('IMEI1 与 IMEI2 不能相同');
+        const numbers = [primary, secondary].filter((n): n is string => !!n);
+        const conflicting = await tx.wh_inventory_imei.findFirst({
+          where: { OR: [{ imei: { in: numbers } }, { imei2: { in: numbers } }] },
+          select: { id: true },
+        });
+        if (conflicting) throw new Error('IMEI1 或 IMEI2 已存在于系统中');
+        // 允许保留历史手动录入格式，但仍强制验证唯一性。
         const existing = await tx.wh_inventory_imei.findUnique({ where: { imei } });
         if (existing) {
           throw new Error(`IMEI ${imei} 已存在于系统中`);
