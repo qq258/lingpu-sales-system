@@ -247,7 +247,7 @@ async function runLabelRecognition() {
   }
 }
 function imeiValid(s: string) {
-  if (!/^\\d{15}$/.test(s)) return false
+  if (!/^\d{15}$/.test(s)) return false
   let sum = 0
   for (let i=0;i<15;i++) { let n=Number(s[i]); if(i%2){n*=2;if(n>9)n-=9} sum+=n }
   return sum%10===0
