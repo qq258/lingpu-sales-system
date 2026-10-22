@@ -492,6 +492,72 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
     const entryNo = await generateOrderNo('PO', store!.code);
 
     await prisma.$transaction(async (tx) => {
+      // 为照片识别得到的新品牌/规格延迟建档；与最终入库保持同一事务，失败时一并回滚。
+      // 已有逐台/批量录入仍直接传入 model_id，不受影响。
+      const preparedItems: any[] = [];
+      for (const rawItem of items) {
+        if (!rawItem || typeof rawItem !== 'object') throw new Error('入库商品数据不合法');
+        let modelId = Number(rawItem.model_id);
+        if (!Number.isInteger(modelId) || modelId <= 0) {
+          const candidate = rawItem.new_model;
+          const name = typeof candidate?.name === 'string' ? candidate.name.trim() : '';
+          const brandName = typeof candidate?.brand === 'string' ? candidate.brand.trim() : '';
+          const color = typeof candidate?.color === 'string' ? candidate.color.trim() : '';
+          const memory = typeof candidate?.memory === 'string' ? candidate.memory.trim() : '';
+          if (!brandName || !name || !color || !memory) {
+            throw new Error('新商品需要品牌、名称、颜色、内存规格');
+          }
+          if (brandName.length > 80 || name.length > 150 || color.length > 80 || memory.length > 80) {
+            throw new Error('新商品字段长度超出允许范围');
+          }
+          const normalized = (value: string) =>
+            value.toLowerCase().normalize('NFKC').replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
+          const normalizedMemory = (value: string) => {
+            const parts = [...value.toUpperCase().matchAll(/(\d+(?:\.\d+)?)\s*(TB|GB|T|G)?/g)];
+            return parts.map(p => p[1] + ((p[2] === 'T' || p[2] === 'TB') ? 'TB' : 'GB')).join('+');
+          };
+
+          const existingBrands = await tx.pdt_brand.findMany({ select: { id: true, name: true } });
+          let brand = existingBrands.find(b => normalized(b.name) === normalized(brandName));
+          if (!brand) {
+            brand = await tx.pdt_brand.create({ data: { name: brandName }, select: { id: true, name: true } });
+          }
+          const existingModels = await tx.pdt_model.findMany({
+            where: { brand_id: brand.id },
+            select: { id: true, name: true, color: true, memory: true, status: true },
+          });
+          const same = existingModels.find(m =>
+            normalized(m.name) === normalized(name) &&
+            normalized(m.color || '') === normalized(color) &&
+            normalizedMemory(m.memory || '') === normalizedMemory(memory)
+          );
+          if (same) {
+            if (same.status !== 1) throw new Error('相同商品规格已停用，请先在商品管理中启用');
+            modelId = same.id;
+          } else {
+            const created = await tx.pdt_model.create({
+              data: {
+                brand_id: brand.id,
+                name,
+                color,
+                memory,
+                sale_price: 0,
+                cost_price: 0,
+              },
+              select: { id: true },
+            });
+            modelId = created.id;
+          }
+        } else {
+          const existing = await tx.pdt_model.findUnique({
+            where: { id: modelId },
+            select: { id: true, status: true },
+          });
+          if (!existing || existing.status !== 1) throw new Error('关联的商品规格不存在或已停用');
+        }
+        preparedItems.push({ ...rawItem, model_id: modelId });
+      }
+
       const entry = await tx.pch_purchase_entry.create({
         data: {
           entry_no: entryNo,
@@ -505,7 +571,7 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
 
       let totalAmount = 0;
 
-      for (const item of items) {
+      for (const item of preparedItems) {
         const { model_id, imei, imei2, sn_code, unit_price } = item;
         if (!model_id || !imei) {
           throw new Error('型号和IMEI不能为空');
@@ -574,8 +640,8 @@ router.post('/purchase-entries/quick-confirm', async (req: Request, res: Respons
         data: { status: 'confirmed', total_amount: totalAmount },
       });
 
-      const modelGroups: Record<number, typeof items> = {};
-      for (const item of items) {
+      const modelGroups: Record<number, typeof preparedItems> = {};
+      for (const item of preparedItems) {
         if (!modelGroups[item.model_id]) modelGroups[item.model_id] = [];
         modelGroups[item.model_id].push(item);
       }
