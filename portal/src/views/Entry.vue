@@ -223,7 +223,58 @@ async function recognizePhoto() {
   }
 }
 function photoImeiValid(value: string): boolean {
-  if (!new RegExp('^[0-9]{15}
+  if (!/^[0-9]{15}$/.test(value)) return false
+  let sum = 0
+  for (let i = 0; i < 15; i++) {
+    let digit = Number(value[i])
+    if (i % 2 === 1) { digit *= 2; if (digit > 9) digit -= 9 }
+    sum += digit
+  }
+  return sum % 10 === 0
+}
+async function addPhotoItem() {
+  if (!photoReviewed.value) return
+  const values=photoFields.value
+  const imei=values.imei1.trim()
+  const imei2=values.imei2.trim()
+  if(!photoImeiValid(imei) || (imei2 && !photoImeiValid(imei2)) || (imei2 && imei===imei2)){
+    ElMessage.warning('IMEI 校验失败，请核对图片')
+    return
+  }
+  if(items.value.some(item=>[item.imei,item.imei2].includes(imei) || (!!imei2 && [item.imei,item.imei2].includes(imei2)))){
+    ElMessage.warning('设备已存在于本次入库清单')
+    return
+  }
+  try {
+    const checks=await Promise.all([imei,...(imei2?[imei2]:[])].map(code=>checkImeiExists(code)))
+    if(checks.some(result=>result?.exists)){
+      ElMessage.warning('设备编号已存在系统中，无法重复入库')
+      return
+    }
+  } catch {
+    ElMessage.warning('设备编号查重失败，请检查网络后重试')
+    return
+  }
+  let model:any=null
+  if(photoProductMode.value==='existing'){
+    model=photoAvailableModels.value.find(m=>m.id===photoModelId.value)
+    if(!model){ElMessage.warning('请选择已有商品规格');return}
+  }else if(![values.brand,values.productName,values.memory,values.color].every(s=>s.trim())){
+    ElMessage.warning('新商品需要品牌、名称、内存和颜色')
+    return
+  }
+  items.value.push({
+    brandName:model?.brand?.name || values.brand.trim(),
+    modelName:model ? [model.name,model.color,model.memory].filter(Boolean).join(' ') : [values.productName,values.color,values.memory].filter(Boolean).join(' '),
+    imei, imei2:imei2 || undefined, snCode:values.sn.trim() || undefined,
+    modelId:model?.id,
+    newModel:photoProductMode.value==='new' ? {brand:values.brand.trim(), name:values.productName.trim(), color:values.color.trim(), memory:values.memory.trim()} : undefined,
+    unitPrice:0,
+  })
+  photoVisible.value=false
+  ElMessage.success('已加入入库清单，最终确认前不会保存设备')
+}
+const userStore = useUserStore()
 const imeiRef = ref<HTMLInputElement>()
 const imei2Ref = ref<HTMLInputElement>()
 const suppliers = ref<any[]>([])
@@ -388,262 +439,6 @@ async function handleConfirm() {
 <style scoped>
 .photo-form { display:flex; flex-direction:column; gap:8px; }
 .photo-hint { margin:0 0 8px; font-size:12px; color:var(--text-tertiary); line-height:1.6; }
-.field-label { display: block; font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
-.supplier-add-row { padding: 6px 12px; border-top: 1px solid var(--border); }
-.supplier-add-btn { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); background: var(--primary-light); color: var(--primary); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: var(--transition); text-align: left; }
-.supplier-add-btn:hover { background: var(--primary); color: #fff; }
-.section-divider { text-align: center; font-size: 13px; color: var(--text-tertiary); margin: 20px 0; letter-spacing: 1.5px; position: relative; }
-.section-divider::before, .section-divider::after { content: ''; position: absolute; top: 50%; width: 60px; height: 1px; background: var(--border); }
-.section-divider::before { right: calc(50% + 50px); }
-.section-divider::after { left: calc(50% + 50px); }
-.add-row { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
-.imei-row { display: flex; gap: 12px; }
-.imei-input-wrap { flex: 1; }
-.input-field { width: 100%; height: 48px; padding: 0 16px; font-size: 17px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); outline: none; font-family: inherit; background: #fff; transition: var(--transition); }
-.input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
-.input-field::placeholder { color: var(--text-tertiary); font-size: 15px; }
-.input-field.input-error { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
-.imei-input-wrap { position: relative; }
-.imei-error-tip { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; color: var(--danger); }
-.imei-checking { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--text-tertiary); }
-.checking-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.extra-row { display: flex; gap: 12px; margin-top: 12px; }
-.extra-field { display: flex; align-items: center; gap: 8px; flex: 1; }
-.extra-label { font-size: 13px; color: var(--text-tertiary); white-space: nowrap; font-weight: 500; }
-.extra-input { flex: 1; height: 42px; padding: 0 14px; font-size: 15px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); outline: none; font-family: inherit; background: #fff; transition: var(--transition); }
-.extra-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
-.extra-input::placeholder { color: var(--text-tertiary); font-size: 14px; }
-.action-btn { display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 24px; border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; transition: var(--transition); flex-shrink: 0; }
-.action-btn:hover { background: var(--primary-dark); }
-.items-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-.item-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--radius); }
-.item-info { flex: 1; min-width: 0; }
-.item-name { font-size: 16px; font-weight: 500; color: var(--text); }
-.item-imei { font-size: 14px; color: var(--text-tertiary); font-family: monospace; margin-top: 2px; }
-.item-price { font-size: 17px; font-weight: 600; color: var(--text); font-family: monospace; white-space: nowrap; }
-.item-del { width: 34px; height: 34px; border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(239,68,68,0.1); color: var(--danger); cursor: pointer; transition: var(--transition); }
-.item-del:hover { background: var(--danger); color: #fff; }
-.summary-bar { padding: 14px 20px; border-radius: var(--radius-sm); font-size: 17px; font-weight: 600; color: var(--text); text-align: right; margin-bottom: 20px; }
-.confirm-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 56px; border: none; border-radius: var(--radius); background: var(--success); color: #fff; font-size: 20px; font-weight: 700; cursor: pointer; font-family: inherit; transition: var(--transition); }
-.confirm-btn:hover { filter: brightness(0.92); box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
-:deep(.el-select) { --el-component-size: 44px; }
-:deep(.el-input-number) { --el-component-size: 44px; }
-</style>
-).test(value)) return false
-  let sum=0
-  for(let i=0;i<15;i++){
-    let digit=Number(value[i])
-    if(i%2===1){digit*=2;if(digit>9)digit-=9}
-    sum+=digit
-  }
-  return sum%10===0
-}
-async function addPhotoItem() {
-  if (!photoReviewed.value) return
-  const values=photoFields.value
-  const imei=values.imei1.trim()
-  const imei2=values.imei2.trim()
-  if(!photoImeiValid(imei) || (imei2 && !photoImeiValid(imei2)) || (imei2 && imei===imei2)){
-    ElMessage.warning('IMEI 校验失败，请核对图片')
-    return
-  }
-  if(items.value.some(item=>[item.imei,item.imei2].includes(imei) || (!!imei2 && [item.imei,item.imei2].includes(imei2)))){
-    ElMessage.warning('设备已存在于本次入库清单')
-    return
-  }
-  try {
-    const checks=await Promise.all([imei,...(imei2?[imei2]:[])].map(code=>checkImeiExists(code)))
-    if(checks.some(result=>result?.exists)){
-      ElMessage.warning('设备编号已存在系统中，无法重复入库')
-      return
-    }
-  } catch {
-    ElMessage.warning('设备编号查重失败，请检查网络后重试')
-    return
-  }
-  let model:any=null
-  if(photoProductMode.value==='existing'){
-    model=photoAvailableModels.value.find(m=>m.id===photoModelId.value)
-    if(!model){ElMessage.warning('请选择已有商品规格');return}
-  }else if(![values.brand,values.productName,values.memory,values.color].every(s=>s.trim())){
-    ElMessage.warning('新商品需要品牌、名称、内存和颜色')
-    return
-  }
-  items.value.push({
-    brandName:model?.brand?.name || values.brand.trim(),
-    modelName:model ? [model.name,model.color,model.memory].filter(Boolean).join(' ') : [values.productName,values.color,values.memory].filter(Boolean).join(' '),
-    imei, imei2:imei2 || undefined, snCode:values.sn.trim() || undefined,
-    modelId:model?.id,
-    newModel:photoProductMode.value==='new' ? {brand:values.brand.trim(), name:values.productName.trim(), color:values.color.trim(), memory:values.memory.trim()} : undefined,
-    unitPrice:0,
-  })
-  photoVisible.value=false
-  ElMessage.success('已加入入库清单，最终确认前不会保存设备')
-}
-const userStore = useUserStore()
-const imeiRef = ref<HTMLInputElement>()
-const imei2Ref = ref<HTMLInputElement>()
-const suppliers = ref<any[]>([])
-const brands = ref<any[]>([])
-const models = ref<any[]>([])
-const supplierId = ref<number | null>(null)
-const supplierLoading = ref(false)
-const supplierSearchText = ref('')
-const addSupplierVisible = ref(false)
-const addSupplierSaving = ref(false)
-const addSupplierForm = ref({ name: '', contact_person: '', phone: '', address: '' })
-const brandId = ref<number | null>(null)
-const modelId = ref<number | null>(null)
-const imeiInput = ref('')
-const imei2Input = ref('')
-const snCodeInput = ref('')
-const items = ref<Array<{ brandName: string; modelName: string; imei: string; imei2?: string; snCode?: string; unitPrice: number; modelId: number }>>([])
-const showConfirm = ref(false)
-const imeiError = ref('')
-const imeiChecking = ref(false)
-let imeiCheckTimer: ReturnType<typeof setTimeout> | null = null
-
-onMounted(async () => {
-  try { suppliers.value = await getSuppliers() } catch {}
-  try { brands.value = await getBrands() } catch {}
-  nextTick(() => imeiRef.value?.focus())
-})
-
-async function onBrandChange() {
-  modelId.value = null
-  if (!brandId.value) { models.value = []; return }
-  try { models.value = await getModels(brandId.value) } catch { models.value = [] }
-}
-
-// ---- 供应商：远程过滤 + 快捷新增 ----
-async function searchSuppliers(query: string) {
-  supplierSearchText.value = query.trim()
-  supplierLoading.value = true
-  try {
-    suppliers.value = await getSuppliers(supplierSearchText.value || undefined)
-  } catch {
-    suppliers.value = []
-  } finally {
-    supplierLoading.value = false
-  }
-}
-
-async function onSupplierDropdownOpen(open: boolean) {
-  if (open) {
-    supplierSearchText.value = ''
-    supplierLoading.value = true
-    try { suppliers.value = await getSuppliers() } catch { suppliers.value = [] }
-    finally { supplierLoading.value = false }
-  }
-}
-
-function openAddSupplier() {
-  addSupplierForm.value = { name: supplierSearchText.value, contact_person: '', phone: '', address: '' }
-  addSupplierVisible.value = true
-}
-
-async function saveSupplier() {
-  if (!addSupplierForm.value.name.trim()) {
-    ElMessage.warning('请填写供应商名称')
-    return
-  }
-  addSupplierSaving.value = true
-  try {
-    const created = await createSupplier({
-      name: addSupplierForm.value.name,
-      contact_person: addSupplierForm.value.contact_person,
-      phone: addSupplierForm.value.phone,
-      address: addSupplierForm.value.address,
-    })
-    supplierId.value = created.id
-    supplierSearchText.value = ''
-    addSupplierVisible.value = false
-    try { suppliers.value = await getSuppliers() } catch { suppliers.value = [] }
-    ElMessage.success('供应商已新增并选中')
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || e?.message || '新增失败')
-  } finally {
-    addSupplierSaving.value = false
-  }
-}
-
-// 扫码自动校验 IMEI 重复性（任意输入防抖触发后端校验）
-watch(imeiInput, (val) => {
-  const trimmed = val.trim()
-  // 输入为空时清除错误
-  if (!trimmed) {
-    imeiError.value = ''
-    if (imeiCheckTimer) { clearTimeout(imeiCheckTimer); imeiCheckTimer = null }
-    return
-  }
-  // 先检查当前列表中是否重复（本地即时校验）
-  if (items.value.some(i => i.imei === trimmed)) {
-    imeiError.value = 'IMEI 已存在于本次入库清单中'
-    return
-  }
-  // 输入达到一定长度后自动触发后端校验（不依赖固定 15 位，兼容双卡/境外设备）
-  if (trimmed.length >= 8) {
-    if (imeiCheckTimer) clearTimeout(imeiCheckTimer)
-    imeiCheckTimer = setTimeout(async () => {
-      imeiChecking.value = true
-      try {
-        const data = await checkImeiExists(trimmed)
-        if (data?.exists) {
-          const status = data.record?.status === 'sold' ? '已售出' : '已在库'
-          imeiError.value = `IMEI ${trimmed} ${status}，无法重复入库`
-        } else {
-          imeiError.value = ''
-        }
-      } catch {
-        // 后端校验失败时不阻塞用户操作，仅静默跳过
-      } finally {
-        imeiChecking.value = false
-      }
-    }, 300)
-  } else {
-    imeiError.value = ''
-  }
-})
-
-function handleAdd() {
-  const imei = imeiInput.value.trim()
-  if (!imei) { ElMessage.warning('请输入 IMEI'); return }
-  if (!modelId.value) { ElMessage.warning('请选择品牌和型号'); return }
-  const m = models.value.find((x: any) => x.id === modelId.value)
-  if (!m) return
-  // 本地清单重复校验
-  if (items.value.some(i => i.imei === imei)) { ElMessage.warning('IMEI 已存在于本次入库清单中'); return }
-  // 后端校验未通过时禁止添加
-  if (imeiError.value) { ElMessage.warning(imeiError.value); return }
-  items.value.push({
-    brandName: brands.value.find((b: any) => b.id === brandId.value)?.name || '',
-    modelName: `${m.name} ${m.color || ''} ${m.memory||''}`.trim(),
-    imei, imei2: imei2Input.value.trim() || undefined, snCode: snCodeInput.value.trim() || undefined,
-    unitPrice: 0, modelId: modelId.value,
-  })
-  imeiError.value = ''
-  imeiInput.value = ''; imei2Input.value = ''; snCodeInput.value = ''
-  nextTick(() => { imeiRef.value?.focus() })
-}
-
-async function handleConfirm() {
-  showConfirm.value = false
-  try {
-    await quickConfirmPurchaseEntry({
-      supplierId: supplierId.value, storeId: userStore.effectiveStoreId || undefined,
-      items: items.value.map(i => ({ modelId: i.modelId, imei: i.imei, imei2: i.imei2, snCode: i.snCode, unitPrice: i.unitPrice })),
-    })
-    ElMessage.success({ message: `入库成功！共 ${items.value.length} 台`, duration: 3000 })
-    items.value = []; supplierId.value = null; brandId.value = null; modelId.value = null
-    supplierSearchText.value = ''
-    imeiInput.value = ''
-    nextTick(() => imeiRef.value?.focus())
-  } catch (e: any) { ElMessage.error(e?.message || '入库失败') }
-}
-</script>
-
-<style scoped>
 .field-label { display: block; font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
 .supplier-add-row { padding: 6px 12px; border-top: 1px solid var(--border); }
 .supplier-add-btn { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); background: var(--primary-light); color: var(--primary); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: var(--transition); text-align: left; }
