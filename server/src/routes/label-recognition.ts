@@ -45,22 +45,24 @@ router.post('/recognize', upload.single('file'), async (req: Request, res: Respo
     const memory = normalizeMemory(fields.memory);
     const color = normalizeName(fields.color);
 
-    const matches = candidates.map(m => {
+    // 只有同品牌、同商品名、同内存、同颜色才可作为自动关联候选。
+    // 产品名称或规格不明确时不自动关联，避免把 OPPO 误配为一加等。
+    const matches = candidates.filter(m => {
       const mName = normalizeName(m.name);
       const mBrand = normalizeName(m.brand.name);
       const mMemory = normalizeMemory(m.memory);
       const mColor = normalizeName(m.color);
-      let score = 0;
-      if (brand && brand === mBrand) score += 35;
-      else if (brand) score -= 50;
-      if (name && (name === mName || mName.includes(name) || name.includes(mName))) score += 35;
-      if (code && (code === mName || mName.includes(code))) score += 30;
-      if (memory && mMemory && memory === mMemory) score += 20;
-      else if (memory && mMemory) score -= 20;
-      if (color && mColor && color === mColor) score += 15;
-      else if (color && mColor) score -= 15;
-      return { id: m.id, brandName: m.brand.name, name: m.name, color: m.color, memory: m.memory, score };
-    }).filter(m => m.score >= 35).sort((a,b) => b.score - a.score).slice(0,5);
+      return !!brand && !!name && !!memory && !!color
+        && mBrand === brand && mName === name
+        && mMemory === memory && mColor === color;
+    }).map(m => ({
+      id: m.id,
+      brandName: m.brand.name,
+      name: m.name,
+      color: m.color,
+      memory: m.memory,
+      score: 105,
+    })).slice(0, 5);
 
     let exists = false;
     if (fields.imei1) {
@@ -70,7 +72,7 @@ router.post('/recognize', upload.single('file'), async (req: Request, res: Respo
       exists = exists || !!await prisma.wh_inventory_imei.findFirst({ where: { OR: [{ imei: fields.imei2 }, { imei2: fields.imei2 }] }, select: { id: true } });
     }
     if (exists) warnings.push('设备 IMEI 已存在于系统，不能重复录入');
-    if (matches.length !== 1 || matches[0].score < 75) warnings.push('未找到唯一可靠的商品规格，请人工选择');
+    if (matches.length !== 1) warnings.push('未找到唯一商品规格，可在入库时自动建档，无需提前创建');
     return res.json({
       code: 200,
       message: '识别完成，请核对结果后添加到入库清单',
