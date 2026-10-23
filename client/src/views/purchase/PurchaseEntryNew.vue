@@ -10,6 +10,41 @@
       </div>
     </header>
 
+    <el-dialog v-model="labelDialogOpen" title="AI 拍照识别手机盒标签" width="620px" :close-on-click-modal="false">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" @change="onLabelFileChange" />
+        <p style="color:#777;font-size:12px;">仅支持手机包装标签。图片发送到 DeepSeek 识别；结果仅填入草稿，不会立即入库。</p>
+        <el-alert v-if="labelError" type="error" :closable="false" :title="labelError" />
+        <template v-if="labelResult">
+          <el-alert v-for="(warning,index) in labelResult.warnings" :key="index" type="warning" :closable="false" :title="warning" />
+          <el-form label-width="100px">
+            <el-form-item label="品牌"><el-input v-model="labelFields.brand" /></el-form-item>
+            <el-form-item label="商品名称"><el-input v-model="labelFields.productName" /></el-form-item>
+            <el-form-item label="厂家型号"><el-input v-model="labelFields.modelCode" /></el-form-item>
+            <el-form-item label="内存"><el-input v-model="labelFields.memory" /></el-form-item>
+            <el-form-item label="颜色"><el-input v-model="labelFields.color" /></el-form-item>
+            <el-form-item label="商品处理方式" required>
+              <el-radio-group v-model="labelProductMode"><el-radio value="existing">关联已有商品</el-radio><el-radio value="new">自动建档新商品</el-radio></el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="labelProductMode === 'existing'" label="关联商品" required>
+              <el-select v-model="labelModelId" filterable placeholder="确认商品规格，必要时手动搜索" style="width:100%">
+                <el-option v-for="item in labelAvailableModels" :key="item.id" :label="`${item.brandName} ${item.name} ${item.color || ''} ${item.memory || ''}`" :value="item.id" />
+              </el-select>
+            </el-form-item>
+            <el-alert v-if="labelProductMode === 'new'" type="info" :closable="false" title="入库确认时才创建品牌及规格，不会提前写入数据库。需要正确填写品牌、商品名称、颜色和内存。" />
+            <el-form-item label="IMEI1" required><el-input v-model="labelFields.imei1" /></el-form-item>
+            <el-form-item label="IMEI2"><el-input v-model="labelFields.imei2" /></el-form-item>
+            <el-form-item label="SN"><el-input v-model="labelFields.sn" /></el-form-item>
+          </el-form>
+          <el-checkbox v-model="labelReviewed">已核对包装标签与设备编号，确认识别信息正确</el-checkbox>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="labelDialogOpen = false">取消</el-button>
+        <el-button v-if="labelResult" type="primary" :disabled="!labelReviewed || (labelProductMode === 'existing' && !labelModelId) || !labelFields.imei1" @click="addRecognizedLabel">添加到入库清单</el-button>
+        <el-button v-else type="primary" :loading="labelLoading" :disabled="!labelFile" @click="runLabelRecognition">开始识别</el-button>
+      </template>
+    </el-dialog>
     <div class="pbm-body">
       <div class="pbm-section-card">
         <h3>基本信息</h3>
@@ -42,6 +77,7 @@
       </div>
 
       <div class="pbm-section-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
         <div class="pbm-mode-toggle">
           <label class="pbm-radio-card" :class="{ active: entryMode === 'single' }">
             <input type="radio" v-model="entryMode" value="single" />
@@ -53,6 +89,8 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="13" y2="15"/></svg>
             <span>批量粘贴</span>
           </label>
+        </div>
+        <el-button type="primary" plain @click="labelDialogOpen = true">拍照识别标签</el-button>
         </div>
       </div>
 
@@ -175,7 +213,96 @@ import { getSuppliers, quickConfirmPurchaseEntry } from '@/api/purchase'
 import type { SupplierData } from '@/api/purchase'
 import { getBrands, getModels } from '@/api/product'
 import { createScanner } from '@/utils/scanner'
+import { recognizePhoneLabel } from '@/api/label-recognition'
+import type { LabelRecognitionResult } from '@/api/label-recognition'
 
+const labelDialogOpen = ref(false)
+const labelFile = ref<File | null>(null)
+const labelResult = ref<LabelRecognitionResult | null>(null)
+const labelFields = ref({brand:'',productName:'',modelCode:'',memory:'',color:'',imei1:'',imei2:'',sn:''})
+const labelReviewed = ref(false)
+const labelLoading = ref(false)
+const labelError = ref('')
+const labelModelId = ref<number | undefined>()
+const labelProductMode = ref<'existing' | 'new'>('new')
+const labelAvailableModels = ref<any[]>([])
+function onLabelFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  labelFile.value = input.files?.[0] || null
+  labelResult.value = null
+  labelModelId.value = undefined
+  labelProductMode.value = 'new'
+  labelReviewed.value = false
+  labelError.value = ''
+}
+async function runLabelRecognition() {
+  if (!labelFile.value) return
+  labelLoading.value = true
+  labelError.value = ''
+  try {
+    const result = await recognizePhoneLabel(labelFile.value)
+    labelResult.value = result
+    labelFields.value = Object.fromEntries(Object.entries(result.fields).map(([k,v])=>[k,v || ''])) as typeof labelFields.value
+    const all = await getModels()
+    labelAvailableModels.value = all.map(m => ({...m, brandName:m.brandName || ''}))
+    if (result.matches.length === 1 && result.matches[0].score >= 105) {
+      labelModelId.value = result.matches[0].id
+      labelProductMode.value = 'existing'
+    } else {
+      labelProductMode.value = 'new'
+    }
+  } catch (error: any) {
+    labelError.value = error?.response?.data?.message || error?.message || '识别失败'
+  } finally {
+    labelLoading.value = false
+  }
+}
+function imeiValid(s: string) {
+  if (!/^\d{15}$/.test(s)) return false
+  let sum = 0
+  for (let i=0;i<15;i++) { let n=Number(s[i]); if(i%2){n*=2;if(n>9)n-=9} sum+=n }
+  return sum%10===0
+}
+function addRecognizedLabel() {
+  if (!labelReviewed.value || (labelProductMode.value === 'existing' && !labelModelId.value)) return
+  if (labelProductMode.value === 'new' && ![labelFields.value.brand,labelFields.value.productName,labelFields.value.color,labelFields.value.memory].every(v=>v.trim())) {
+    ElMessage.warning('创建商品需要完整的品牌、名称、颜色和内存规格')
+    return
+  }
+  const imei = labelFields.value.imei1.trim()
+  const imei2 = labelFields.value.imei2.trim()
+  if (!imeiValid(imei) || (imei2 && !imeiValid(imei2)) || (imei2 && imei2 === imei)) {
+    ElMessage.warning('IMEI 校验不通过，请重新核对')
+    return
+  }
+  if (labelResult.value?.duplicate || items.value.some(i=>i.imei===imei || i.imei2===imei || (imei2 && (i.imei===imei2 || i.imei2===imei2)))) {
+    ElMessage.warning('设备编号可能重复，请核对后再试')
+    return
+  }
+  const model=labelProductMode.value === 'existing' ? labelAvailableModels.value.find(m=>m.id===labelModelId.value) : null
+  if (labelProductMode.value === 'existing' && !model) return
+  items.value.push({
+    id:--localIdCounter,
+    modelId:model?.id,
+    newModel: labelProductMode.value === 'new' ? {
+      brand:labelFields.value.brand.trim(),
+      name:labelFields.value.productName.trim(),
+      color:labelFields.value.color.trim(),
+      memory:labelFields.value.memory.trim(),
+    } : undefined,
+    brandName:model?.brandName || labelFields.value.brand.trim(),
+    modelName:model?.name || labelFields.value.productName.trim(),
+    imei,
+    imei2:imei2 || undefined,
+    snCode:labelFields.value.sn.trim() || undefined,
+    unitPrice:unitPrice.value || model?.costPrice || 0,
+  })
+  labelDialogOpen.value=false
+  labelResult.value=null
+  labelFile.value=null
+  labelReviewed.value=false
+  ElMessage.success('已添加到本次入库清单，尚未提交入库')
+}
 const userStore = useUserStore()
 const emit = defineEmits<{ back: [] }>()
 
@@ -420,6 +547,7 @@ async function handleConfirm() {
       storeId: userStore.effectiveStoreId || undefined,
       items: items.value.map(i => ({
         modelId: i.modelId,
+        newModel: i.newModel,
         imei: i.imei,
         imei2: i.imei2,
         snCode: i.snCode,

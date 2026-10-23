@@ -31,6 +31,7 @@
     </div>
 
     <div class="section-divider">添加手机</div>
+    <div style="margin-bottom:16px;display:flex;justify-content:flex-end;"><el-button type="primary" size="large" @click="openPhotoDialog">拍照识别标签</el-button></div>
 
     <div class="glass" style="padding:22px;border-radius:var(--radius);margin-bottom:20px;">
       <div class="add-row">
@@ -102,6 +103,45 @@
       @confirm="handleConfirm" @cancel="showConfirm = false"
     />
 
+    <el-dialog v-model="photoVisible" title="AI 拍照录入手机" width="min(94vw, 620px)" :close-on-click-modal="false">
+      <div class="photo-form">
+        <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" @change="onPhotoSelected" />
+        <p class="photo-hint">图片会发送到后端 DeepSeek 服务；识别结果仅添加入库清单，最终确认入库前不会创建商品。</p>
+        <el-alert v-if="photoError" type="error" :closable="false" :title="photoError" />
+        <template v-if="photoResult">
+          <el-alert v-for="(warning, idx) in photoResult.warnings" :key="idx" type="warning" :closable="false" :title="warning" />
+          <el-form label-width="94px" style="margin-top:10px">
+            <el-form-item label="品牌"><el-input v-model="photoFields.brand" /></el-form-item>
+            <el-form-item label="商品名称"><el-input v-model="photoFields.productName" /></el-form-item>
+            <el-form-item label="厂家型号"><el-input v-model="photoFields.modelCode" /></el-form-item>
+            <el-form-item label="内存"><el-input v-model="photoFields.memory" /></el-form-item>
+            <el-form-item label="颜色"><el-input v-model="photoFields.color" /></el-form-item>
+            <el-form-item label="商品处理">
+              <el-radio-group v-model="photoProductMode">
+                <el-radio value="existing">关联已有商品</el-radio>
+                <el-radio value="new">自动建档新商品</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="photoProductMode === 'existing'" label="已有商品" required>
+              <el-select v-model="photoModelId" filterable placeholder="选择正确的商品规格" style="width:100%">
+                <el-option v-for="m in photoAvailableModels" :key="m.id" :value="m.id" :label="`${m.brand?.name || ''} ${m.name} ${m.color || ''} ${m.memory || ''}`" />
+              </el-select>
+            </el-form-item>
+            <el-alert v-else type="info" :closable="false" title="新品牌/规格会在最终确认入库时建档，取消入库不会创建商品。" style="margin-bottom:12px" />
+            <el-form-item label="IMEI1" required><el-input v-model="photoFields.imei1" /></el-form-item>
+            <el-form-item label="IMEI2"><el-input v-model="photoFields.imei2" /></el-form-item>
+            <el-form-item label="SN"><el-input v-model="photoFields.sn" /></el-form-item>
+          </el-form>
+          <el-checkbox v-model="photoReviewed">已对照包装标签核对设备编号及商品规格</el-checkbox>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="photoVisible=false">取消</el-button>
+        <el-button v-if="!photoResult" type="primary" :loading="photoLoading" :disabled="!photoFile" @click="recognizePhoto">开始识别</el-button>
+        <el-button v-else type="primary" :disabled="!photoReviewed || (photoProductMode === 'existing' && !photoModelId)" @click="addPhotoItem">添加到入库清单</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增供应商 -->
     <el-dialog v-model="addSupplierVisible" title="新增供应商" width="440px" destroy-on-close>
       <el-form label-width="80px">
@@ -132,8 +172,108 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getSuppliers, createSupplier, checkImeiExists, quickConfirmPurchaseEntry } from '@/api/purchase'
 import { getBrands, getModels } from '@/api/product'
+import { recognizePhoneLabel } from '@/api/label-recognition'
+import type { LabelRecognitionResult } from '@/api/label-recognition'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
+const photoVisible = ref(false)
+const photoFile = ref<File | null>(null)
+const photoLoading = ref(false)
+const photoError = ref('')
+const photoResult = ref<LabelRecognitionResult | null>(null)
+const photoFields = ref({brand:'',productName:'',modelCode:'',memory:'',color:'',imei1:'',imei2:'',sn:''})
+const photoProductMode = ref<'existing' | 'new'>('new')
+const photoModelId = ref<number | null>(null)
+const photoAvailableModels = ref<any[]>([])
+const photoReviewed = ref(false)
+
+function openPhotoDialog() {
+  photoVisible.value = true
+  photoFile.value = null
+  photoResult.value = null
+  photoError.value = ''
+  photoReviewed.value = false
+  photoModelId.value = null
+  photoProductMode.value = 'new'
+}
+function onPhotoSelected(event: Event) {
+  photoFile.value = (event.target as HTMLInputElement).files?.[0] || null
+  photoResult.value = null
+  photoReviewed.value = false
+  photoModelId.value = null
+  photoError.value = ''
+}
+async function recognizePhoto() {
+  if (!photoFile.value) return
+  photoLoading.value = true
+  photoError.value = ''
+  try {
+    const result = await recognizePhoneLabel(photoFile.value)
+    photoResult.value = result
+    photoFields.value = Object.fromEntries(Object.entries(result.fields).map(([k,v])=>[k,v || ''])) as typeof photoFields.value
+    photoAvailableModels.value = await getModels()
+    if (result.matches.length === 1 && result.matches[0].score >= 105) {
+      photoModelId.value = result.matches[0].id
+      photoProductMode.value = 'existing'
+    } else photoProductMode.value = 'new'
+  } catch (error: any) {
+    photoError.value = error?.response?.data?.message || error?.message || '识别失败'
+  } finally {
+    photoLoading.value = false
+  }
+}
+function photoImeiValid(value: string): boolean {
+  if (!/^[0-9]{15}$/.test(value)) return false
+  let sum = 0
+  for (let i = 0; i < 15; i++) {
+    let digit = Number(value[i])
+    if (i % 2 === 1) { digit *= 2; if (digit > 9) digit -= 9 }
+    sum += digit
+  }
+  return sum % 10 === 0
+}
+async function addPhotoItem() {
+  if (!photoReviewed.value) return
+  const values=photoFields.value
+  const imei=values.imei1.trim()
+  const imei2=values.imei2.trim()
+  if(!photoImeiValid(imei) || (imei2 && !photoImeiValid(imei2)) || (imei2 && imei===imei2)){
+    ElMessage.warning('IMEI 校验失败，请核对图片')
+    return
+  }
+  if(items.value.some(item=>[item.imei,item.imei2].includes(imei) || (!!imei2 && [item.imei,item.imei2].includes(imei2)))){
+    ElMessage.warning('设备已存在于本次入库清单')
+    return
+  }
+  try {
+    const checks=await Promise.all([imei,...(imei2?[imei2]:[])].map(code=>checkImeiExists(code)))
+    if(checks.some(result=>result?.exists)){
+      ElMessage.warning('设备编号已存在系统中，无法重复入库')
+      return
+    }
+  } catch {
+    ElMessage.warning('设备编号查重失败，请检查网络后重试')
+    return
+  }
+  let model:any=null
+  if(photoProductMode.value==='existing'){
+    model=photoAvailableModels.value.find(m=>m.id===photoModelId.value)
+    if(!model){ElMessage.warning('请选择已有商品规格');return}
+  }else if(![values.brand,values.productName,values.memory,values.color].every(s=>s.trim())){
+    ElMessage.warning('新商品需要品牌、名称、内存和颜色')
+    return
+  }
+  items.value.push({
+    brandName:model?.brand?.name || values.brand.trim(),
+    modelName:model ? [model.name,model.color,model.memory].filter(Boolean).join(' ') : [values.productName,values.color,values.memory].filter(Boolean).join(' '),
+    imei, imei2:imei2 || undefined, snCode:values.sn.trim() || undefined,
+    modelId:model?.id,
+    newModel:photoProductMode.value==='new' ? {brand:values.brand.trim(), name:values.productName.trim(), color:values.color.trim(), memory:values.memory.trim()} : undefined,
+    unitPrice:0,
+  })
+  photoVisible.value=false
+  ElMessage.success('已加入入库清单，最终确认前不会保存设备')
+}
 const userStore = useUserStore()
 const imeiRef = ref<HTMLInputElement>()
 const imei2Ref = ref<HTMLInputElement>()
@@ -151,7 +291,7 @@ const modelId = ref<number | null>(null)
 const imeiInput = ref('')
 const imei2Input = ref('')
 const snCodeInput = ref('')
-const items = ref<Array<{ brandName: string; modelName: string; imei: string; imei2?: string; snCode?: string; unitPrice: number; modelId: number }>>([])
+const items = ref<Array<{ brandName: string; modelName: string; imei: string; imei2?: string; snCode?: string; unitPrice: number; modelId?: number; newModel?: {brand:string;name:string;color:string;memory:string} }>>([])
 const showConfirm = ref(false)
 const imeiError = ref('')
 const imeiChecking = ref(false)
@@ -285,7 +425,7 @@ async function handleConfirm() {
   try {
     await quickConfirmPurchaseEntry({
       supplierId: supplierId.value, storeId: userStore.effectiveStoreId || undefined,
-      items: items.value.map(i => ({ modelId: i.modelId, imei: i.imei, imei2: i.imei2, snCode: i.snCode, unitPrice: i.unitPrice })),
+      items: items.value.map(i => ({ modelId: i.modelId, newModel: i.newModel, imei: i.imei, imei2: i.imei2, snCode: i.snCode, unitPrice: i.unitPrice })),
     })
     ElMessage.success({ message: `入库成功！共 ${items.value.length} 台`, duration: 3000 })
     items.value = []; supplierId.value = null; brandId.value = null; modelId.value = null
@@ -297,6 +437,8 @@ async function handleConfirm() {
 </script>
 
 <style scoped>
+.photo-form { display:flex; flex-direction:column; gap:8px; }
+.photo-hint { margin:0 0 8px; font-size:12px; color:var(--text-tertiary); line-height:1.6; }
 .field-label { display: block; font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
 .supplier-add-row { padding: 6px 12px; border-top: 1px solid var(--border); }
 .supplier-add-btn { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--radius-sm); background: var(--primary-light); color: var(--primary); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: var(--transition); text-align: left; }

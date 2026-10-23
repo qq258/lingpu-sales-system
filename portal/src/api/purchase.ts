@@ -38,11 +38,11 @@ export async function checkImeiExists(imei: string) {
 
 export async function quickConfirmPurchaseEntry(data: {
   supplierId?: number | null; remark?: string; storeId?: number;
-  items: Array<{ modelId: number; imei: string; imei2?: string; snCode?: string; unitPrice: number }>
+  items: Array<{ modelId?: number; newModel?: { brand: string; name: string; color: string; memory: string }; imei: string; imei2?: string; snCode?: string; unitPrice: number }>
 }) {
   const res: any = await request.post('/purchase/purchase-entries/quick-confirm', {
     supplier_id: data.supplierId, remark: data.remark, store_id: data.storeId,
-    items: data.items.map(i => ({ model_id: i.modelId, imei: i.imei, imei2: i.imei2 || null, sn_code: i.snCode || null, unit_price: i.unitPrice })),
+    items: data.items.map(i => ({ model_id: i.modelId, new_model: i.newModel, imei: i.imei, imei2: i.imei2 || null, sn_code: i.snCode || null, unit_price: i.unitPrice })),
   })
   return res.data
 }

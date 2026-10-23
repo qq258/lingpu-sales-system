@@ -17,6 +17,7 @@ import toolsRoutes from './routes/tools';
 import afterSalesRoutes from './routes/after-sales';
 import settingsRoutes from './routes/settings';
 import permissionRoutes from './routes/permissions';
+import labelRecognitionRoutes from './routes/label-recognition';
 
 const app = express();
 const HOST = process.env.HOST || '0.0.0.0';
@@ -44,6 +45,7 @@ app.use('/api/v1/tools', toolsRoutes);
 app.use('/api/v1/after-sales', afterSalesRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/permissions', permissionRoutes);
+app.use('/api/v1/label-recognition', labelRecognitionRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ code: 200, message: 'ok', data: { time: new Date().toISOString() } });
